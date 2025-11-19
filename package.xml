@@ -1,0 +1,40 @@
+<?xml version="1.0"?>
+<package format="2">
+    <name>rl_nav</name>
+    <version>0.1.0</version>
+    <description>
+        Reinforcement-learning based navigation components for ROS 1.
+    </description>
+
+    <maintainer email="mihirk284@gmail.com">Mihir Kulkarni</maintainer>
+    <license>BSD-3-Clause</license>
+    <url type="website">https://github.com/TODO/rl_nav</url>
+
+    <!-- Build tool -->
+    <buildtool_depend>catkin</buildtool_depend>
+
+    <!-- Compile / build dependencies -->
+    <build_depend>roscpp</build_depend>
+    <build_depend>rospy</build_depend>
+    <build_depend>std_msgs</build_depend>
+    <build_depend>geometry_msgs</build_depend>
+    <build_depend>nav_msgs</build_depend>
+    <build_depend>sensor_msgs</build_depend>
+    <build_depend>actionlib</build_depend>
+    <build_depend>message_generation</build_depend>
+
+    <!-- Runtime dependencies -->
+    <exec_depend>roscpp</exec_depend>
+    <exec_depend>rospy</exec_depend>
+    <exec_depend>std_msgs</exec_depend>
+    <exec_depend>geometry_msgs</exec_depend>
+    <exec_depend>nav_msgs</exec_depend>
+    <exec_depend>sensor_msgs</exec_depend>
+    <exec_depend>actionlib</exec_depend>
+    <exec_depend>message_runtime</exec_depend>
+
+    <!-- Test dependencies -->
+    <test_depend>rostest</test_depend>
+
+    <export/>
+</package>

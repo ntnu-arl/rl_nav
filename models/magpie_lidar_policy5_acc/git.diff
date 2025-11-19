@@ -1,0 +1,51 @@
+diff --git a/aerial_gym/config/task_config/lidar_navigation_task_config.py b/aerial_gym/config/task_config/lidar_navigation_task_config.py
+index 4644868..fae6a35 100644
+--- a/aerial_gym/config/task_config/lidar_navigation_task_config.py
++++ b/aerial_gym/config/task_config/lidar_navigation_task_config.py
+@@ -31,22 +31,22 @@ class task_config:
+         "pos_reward_exponent": 1.0,
+         "very_close_to_goal_reward_magnitude": 5.0,
+         "very_close_to_goal_reward_exponent": 10.0,
+-        "vel_direction_component_reward_magnitude": 2.0,
+-        "x_action_diff_penalty_magnitude": 0.3,
++        "vel_direction_component_reward_magnitude": 1.0,
++        "x_action_diff_penalty_magnitude": 0.1,
+         "x_action_diff_penalty_exponent": 5.0,
+-        "y_action_diff_penalty_magnitude": 0.3,
++        "y_action_diff_penalty_magnitude": 0.1,
+         "y_action_diff_penalty_exponent": 5.0,
+-        "z_action_diff_penalty_magnitude": 0.3,
++        "z_action_diff_penalty_magnitude": 0.1,
+         "z_action_diff_penalty_exponent": 5.0,
+-        "yawrate_action_diff_penalty_magnitude": 0.3,
++        "yawrate_action_diff_penalty_magnitude": 0.1,
+         "yawrate_action_diff_penalty_exponent": 5.0,
+         "x_absolute_action_penalty_magnitude": 0.1,
+         "x_absolute_action_penalty_exponent": 0.3,
+         "y_absolute_action_penalty_magnitude": 0.1,
+         "y_absolute_action_penalty_exponent": 0.3,
+-        "z_absolute_action_penalty_magnitude": 1.5,
++        "z_absolute_action_penalty_magnitude": 0.15,
+         "z_absolute_action_penalty_exponent": 1.0,
+-        "yawrate_absolute_action_penalty_magnitude": 1.5,
++        "yawrate_absolute_action_penalty_magnitude": 0.15,
+         "yawrate_absolute_action_penalty_exponent": 2.0,
+         "collision_penalty": -10.0,
+     }
+diff --git a/aerial_gym/task/lidar_navigation_task/lidar_navigation_task.py b/aerial_gym/task/lidar_navigation_task/lidar_navigation_task.py
+index d96f633..425258b 100644
+--- a/aerial_gym/task/lidar_navigation_task/lidar_navigation_task.py
++++ b/aerial_gym/task/lidar_navigation_task/lidar_navigation_task.py
+@@ -505,9 +505,9 @@ def compute_reward(
+     vel_dir_component = torch.sum(robot_vel_dir * unit_vec_to_goal, dim=1)
+     vel_dir_component_reward = torch.where(vel_dir_component > 0,
+                                            parameter_dict["vel_direction_component_reward_magnitude"] * vel_dir_component,
+-                                           -0.2 * torch.ones_like(vel_dir_component)
+-                                           ) * torch.min(dist , torch.ones_like(dist))
+-    
++                                           0.0 * torch.ones_like(vel_dir_component)
++                                           ) * torch.min(dist / 2, torch.ones_like(dist))
++
+     # for acceleration setpoint task
+     # any velocity greater than 3m/s be penalized
+     vel_magnitude_penalty = exponential_penalty_function(

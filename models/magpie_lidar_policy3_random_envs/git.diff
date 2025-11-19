@@ -1,0 +1,977 @@
+diff --git a/aerial_gym/config/asset_config/env_object_config.py b/aerial_gym/config/asset_config/env_object_config.py
+index eecf8bb..f8967ba 100644
+--- a/aerial_gym/config/asset_config/env_object_config.py
++++ b/aerial_gym/config/asset_config/env_object_config.py
+@@ -112,7 +112,7 @@ class panel_asset_params(asset_state_params):
+         0.0,
+     ]
+ 
+-    keep_in_env = True
++    keep_in_env = False
+ 
+     collapse_fixed_joints = True
+     per_link_semantic = False
+@@ -170,7 +170,7 @@ class tile_asset_params(asset_state_params):
+         0.0,
+     ]
+ 
+-    keep_in_env = True
++    keep_in_env = False
+ 
+     collapse_fixed_joints = True
+     per_link_semantic = False
+@@ -262,7 +262,7 @@ class tree_asset_params(asset_state_params):
+ 
+     collapse_fixed_joints = True
+     per_link_semantic = True
+-    keep_in_env = True
++    keep_in_env = False
+ 
+     semantic_id = -1  # TREE_SEMANTIC_ID
+     color = [70, 200, 100]
+@@ -271,7 +271,7 @@ class tree_asset_params(asset_state_params):
+ 
+ 
+ class object_asset_params(asset_state_params):
+-    num_assets = 5
++    num_assets = 70
+ 
+     asset_folder = f"{AERIAL_GYM_DIRECTORY}/resources/models/environment_assets/objects"
+ 
+@@ -352,7 +352,7 @@ class left_wall(asset_state_params):
+         0.0,
+     ]
+ 
+-    keep_in_env = True
++    keep_in_env = False
+ 
+     collapse_fixed_joints = True
+     specific_filepath = "cube.urdf"
+@@ -398,7 +398,7 @@ class right_wall(asset_state_params):
+         0.0,
+     ]
+ 
+-    keep_in_env = True
++    keep_in_env = False
+ 
+     collapse_fixed_joints = True
+     per_link_semantic = False
+@@ -446,7 +446,7 @@ class top_wall(asset_state_params):
+         0.0,
+     ]
+ 
+-    keep_in_env = True
++    keep_in_env = False
+ 
+     collapse_fixed_joints = True
+     specific_filepath = "cube.urdf"
+@@ -493,7 +493,7 @@ class bottom_wall(asset_state_params):
+         0.0,
+     ]
+ 
+-    keep_in_env = True
++    keep_in_env = False
+ 
+     collapse_fixed_joints = True
+     specific_filepath = "cube.urdf"
+@@ -541,7 +541,7 @@ class front_wall(asset_state_params):
+         0.0,
+     ]
+ 
+-    keep_in_env = True
++    keep_in_env = False
+ 
+     collapse_fixed_joints = True
+     specific_filepath = "cube.urdf"
+@@ -589,7 +589,7 @@ class back_wall(asset_state_params):
+         0.0,
+     ]
+ 
+-    keep_in_env = True
++    keep_in_env = False
+ 
+     collapse_fixed_joints = True
+     specific_filepath = "cube.urdf"
+diff --git a/aerial_gym/config/env_config/empty_env.py b/aerial_gym/config/env_config/empty_env.py
+index bbadd36..141e21c 100644
+--- a/aerial_gym/config/env_config/empty_env.py
++++ b/aerial_gym/config/env_config/empty_env.py
+@@ -8,7 +8,7 @@ class EmptyEnvCfg:
+         # these are the actions that are sent to environment entities
+         # and some of them may be used to control various entities in the environment
+         # e.g. motion of obstacles, etc.
+-        env_spacing = 1.0  # not used with heightfields/trimeshes
++        env_spacing = 5.0  # not used with heightfields/trimeshes
+         num_physics_steps_per_env_step_mean = 1  # number of steps between camera renders mean
+         num_physics_steps_per_env_step_std = 0  # number of steps between camera renders std
+         render_viewer_every_n_steps = 10  # render the viewer every n steps
+diff --git a/aerial_gym/config/env_config/env_with_obstacles.py b/aerial_gym/config/env_config/env_with_obstacles.py
+index ad522c6..44a3fe5 100644
+--- a/aerial_gym/config/env_config/env_with_obstacles.py
++++ b/aerial_gym/config/env_config/env_with_obstacles.py
+@@ -41,10 +41,10 @@ class EnvWithObstaclesCfg:
+         write_to_sim_at_every_timestep = False  # write to sim at every timestep
+ 
+         use_warp = True
+-        lower_bound_min = [-2.0, -4.0, -3.0]  # lower bound for the environment space
+-        lower_bound_max = [-1.0, -2.5, -2.0]  # lower bound for the environment space
+-        upper_bound_min = [9.0, 2.5, 2.0]  # upper bound for the environment space
+-        upper_bound_max = [10.0, 4.0, 3.0]  # upper bound for the environment space
++        lower_bound_min = [-7.50, -7.50, -5.0]  # lower bound for the environment space
++        lower_bound_max = [-5.0, -5.0, -3.0]  # lower bound for the environment space
++        upper_bound_min = [5.0, 5.0, 3.0]  # upper bound for the environment space
++        upper_bound_max = [7.5, 7.5, 5.0]  # upper bound for the environment space
+ 
+     class env_config:
+         include_asset_type = {
+diff --git a/aerial_gym/config/robot_config/lmf2_config.py b/aerial_gym/config/robot_config/lmf2_config.py
+index 4d719f9..54754a4 100644
+--- a/aerial_gym/config/robot_config/lmf2_config.py
++++ b/aerial_gym/config/robot_config/lmf2_config.py
+@@ -18,11 +18,11 @@ class LMF2Cfg:
+         # init_state tensor is of the format [ratio_x, ratio_y, ratio_z, roll_radians, pitch_radians, yaw_radians, 1.0 (for maintaining shape), vx, vy, vz, wx, wy, wz]
+         min_init_state = [
+             0.1,
+-            0.15,
+-            0.15,
++            0.1,
++            0.1,
+             0,  # -np.pi / 6,
+             0,  # -np.pi / 6,
+-            -np.pi / 6,
++            -np.pi,
+             1.0,
+             -0.2,
+             -0.2,
+@@ -32,12 +32,12 @@ class LMF2Cfg:
+             -0.2,
+         ]
+         max_init_state = [
+-            0.2,
++            0.9,
+             0.85,
+             0.85,
+             0,  # np.pi / 6,
+             0,  # np.pi / 6,
+-            np.pi / 6,
++            np.pi,
+             1.0,
+             0.2,
+             0.2,
+@@ -48,7 +48,7 @@ class LMF2Cfg:
+         ]
+ 
+     class sensor_config:
+-        enable_camera = True
++        enable_camera = False
+         camera_config = BaseDepthCameraConfig
+ 
+         enable_lidar = False
+@@ -58,7 +58,7 @@ class LMF2Cfg:
+         imu_config = BaseImuConfig
+ 
+     class disturbance:
+-        enable_disturbance = True
++        enable_disturbance = False
+         prob_apply_disturbance = 0.05
+         max_force_and_torque_disturbance = [4.75, 4.75, 4.75, 0.03, 0.03, 0.03]
+ 
+diff --git a/aerial_gym/config/sensor_config/lidar_config/osdome_64_config.py b/aerial_gym/config/sensor_config/lidar_config/osdome_64_config.py
+index fd37648..39e2580 100644
+--- a/aerial_gym/config/sensor_config/lidar_config/osdome_64_config.py
++++ b/aerial_gym/config/sensor_config/lidar_config/osdome_64_config.py
+@@ -3,25 +3,26 @@ from aerial_gym.config.sensor_config.lidar_config.base_lidar_config import BaseL
+ 
+ class OSDome_64_Config(BaseLidarConfig):
+     # keep everything pretty much the same and change the number of vertical rays
+-    height = 64
+-    width = 512
++    height = 48
++    width = 120
+     horizontal_fov_deg_min = -180
+     horizontal_fov_deg_max = 180
+     vertical_fov_deg_min = 0
+     vertical_fov_deg_max = 90
+-    max_range = 20.0
+-    min_range = 0.5
++    max_range = 10.0
++    min_range = 0.2
+ 
+     return_pointcloud = False
+-    segmentation_camera = True
++    segmentation_camera = False
++    normalize_range = False
+ 
+     # randomize placement of the sensor
+-    randomize_placement = False
+-    min_translation = [0.0, 0.0, 0.0]
+-    max_translation = [0.0, 0.0, 0.0]
++    randomize_placement = True
++    min_translation = [-0.05, 0.0, 0.0]
++    max_translation = [-0.05, 0.0, 0.0]
+     # example of a front-mounted dome lidar
+-    min_euler_rotation_deg = [0.0, 0.0, 0.0]
+-    max_euler_rotation_deg = [0.0, 0.0, 0.0]
++    min_euler_rotation_deg = [0.0, -90.0, 0.0]
++    max_euler_rotation_deg = [0.0, -90.0, 0.0]
+ 
+     class sensor_noise:
+         enable_sensor_noise = False
+diff --git a/aerial_gym/config/task_config/navigation_task_config.py b/aerial_gym/config/task_config/navigation_task_config.py
+index 7ecbda5..38b8b82 100644
+--- a/aerial_gym/config/task_config/navigation_task_config.py
++++ b/aerial_gym/config/task_config/navigation_task_config.py
+@@ -9,7 +9,7 @@ class task_config:
+     robot_name = "lmf2"
+     controller_name = "lmf2_velocity_control"
+     args = {}
+-    num_envs = 1024
++    num_envs = 32
+     use_warp = True
+     headless = True
+     device = "cuda:0"
+@@ -27,11 +27,11 @@ class task_config:
+     target_max_ratio = [0.94, 0.90, 0.90]  # target ratio w.r.t environment bounds in x,y,z
+ 
+     reward_parameters = {
+-        "pos_reward_magnitude": 5.0,
++        "pos_reward_magnitude": 10.0,
+         "pos_reward_exponent": 1.0 / 3.5,
+         "very_close_to_goal_reward_magnitude": 5.0,
+         "very_close_to_goal_reward_exponent": 2.0,
+-        "getting_closer_reward_multiplier": 10.0,
++        "getting_closer_reward_multiplier": 15.0,
+         "x_action_diff_penalty_magnitude": 0.8,
+         "x_action_diff_penalty_exponent": 3.333,
+         "z_action_diff_penalty_magnitude": 0.8,
+@@ -44,7 +44,7 @@ class task_config:
+         "z_absolute_action_penalty_exponent": 1.0,
+         "yawrate_absolute_action_penalty_magnitude": 1.5,
+         "yawrate_absolute_action_penalty_exponent": 2.0,
+-        "collision_penalty": -100.0,
++        "collision_penalty": -300.0,
+     }
+ 
+     class vae_config:
+diff --git a/aerial_gym/examples/acceleration_control_example.py b/aerial_gym/examples/acceleration_control_example.py
+index e87188c..105aca4 100644
+--- a/aerial_gym/examples/acceleration_control_example.py
++++ b/aerial_gym/examples/acceleration_control_example.py
+@@ -4,6 +4,10 @@ logger = CustomLogger(__name__)
+ from aerial_gym.sim.sim_builder import SimBuilder
+ import torch
+ 
++
++import numpy as np
++import matplotlib.pyplot as plt
++
+ if __name__ == "__main__":
+     logger.debug("this is how a debug message looks like")
+     logger.info("this is how an info message looks like")
+@@ -15,9 +19,9 @@ if __name__ == "__main__":
+     )
+     env_manager = SimBuilder().build_env(
+         sim_name="base_sim",
+-        env_name="env_with_obstacles",  # empty_env
+-        robot_name="base_quadrotor",  # "base_octarotor"
+-        controller_name="lee_acceleration_control",
++        env_name="empty_env",  # empty_env
++        robot_name="lmf2",  # "base_octarotor"
++        controller_name="lee_velocity_control",
+         args=None,
+         num_envs=16,
+         device="cuda:0",
+@@ -25,12 +29,44 @@ if __name__ == "__main__":
+         use_warp=True,  # safer to use warp as it disables the camera when no object is in the environment
+     )
+     actions = torch.zeros((env_manager.num_envs, 4)).to("cuda:0")
+-    actions[:, 0] = 0.25  # constant forward acceleration
++    actions[:, 0] = 10.0  # constant forward acceleration
++    actions[:, 1] = 5.0  # no lateral acceleration
++    actions[:, 2] = 2.0  # no vertical acceleration
++    actions[:, 3] = -0.1  # no yaw acceleration
+     env_manager.reset()
+-    for i in range(1000):
+-        if i % 100 == 0:
++    obs_dict = env_manager.get_obs()
++
++    position_array_list = np.zeros((2000, 3), dtype=np.float32)
++    velocity_array_list = np.zeros((2000, 3), dtype=np.float32)
++
++
++    for i in range(10000):
++        if i % 1000 == 0 and i > 0:
+             print("i", i)
+-            env_manager.reset()
++            # env_manager.reset()
++            plt.figure(figsize=(10, 5))
++            plt.subplot(1, 2, 1)
++            plt.plot(position_array_list[:, 0], label="X Position")
++            plt.plot(position_array_list[:, 1], label="Y Position")
++            plt.plot(position_array_list[:, 2], label="Z Position")
++            plt.legend()
++            plt.title("Position")
++            plt.subplot(1, 2, 2)
++            plt.plot(velocity_array_list[:, 0], label="X Velocity")
++            plt.plot(velocity_array_list[:, 1], label="Y Velocity")
++            plt.plot(velocity_array_list[:, 2], label="Z Velocity")
++            plt.legend()
++            plt.title("Velocity")
++            plt.tight_layout()
++            plt.show()
++            # position_array_list = np.zeros((1000, 3), dtype=np.float32)
++            # velocity_array_list = np.zeros((1000, 3), dtype=np.float32)
++            actions = -actions
++
+         env_manager.step(actions=actions)
+         env_manager.render()
+         env_manager.reset_terminated_and_truncated_envs()
++
++        position_array_list[i % 2000, 0:3] = obs_dict["robot_position"][0].cpu().numpy()
++        velocity_array_list[i % 2000, 0:3] = obs_dict["robot_body_linvel"][0].cpu().numpy()
++
+diff --git a/aerial_gym/rl_training/rl_games/ppo_aerial_quad_navigation.yaml b/aerial_gym/rl_training/rl_games/ppo_aerial_quad_navigation.yaml
+index 5efea2a..2b4049c 100644
+--- a/aerial_gym/rl_training/rl_games/ppo_aerial_quad_navigation.yaml
++++ b/aerial_gym/rl_training/rl_games/ppo_aerial_quad_navigation.yaml
+@@ -28,12 +28,12 @@ params:
+       initializer:
+         name: default
+         scale: 2
+-    # rnn:
+-    #     name: gru
+-    #     units: 32
+-    #     layers: 1
+-    #     before_mlp: False
+-    #     layer_norm: True
++    rnn:
++        name: gru
++        units: 32
++        layers: 1
++        before_mlp: False
++        layer_norm: True
+   config:
+     env_name: quad
+     env_config:
+diff --git a/aerial_gym/rl_training/rl_games/runner.py b/aerial_gym/rl_training/rl_games/runner.py
+index 7e8ffb4..6288d20 100644
+--- a/aerial_gym/rl_training/rl_games/runner.py
++++ b/aerial_gym/rl_training/rl_games/runner.py
+@@ -115,6 +115,14 @@ env_configurations.register(
+     },
+ )
+ 
++env_configurations.register(
++    "lidar_navigation_task",
++    {
++        "env_creator": lambda **kwargs: task_registry.make_task("lidar_navigation_task", **kwargs),
++        "vecenv_type": "AERIAL-RLGPU",
++    },
++)
++
+ env_configurations.register(
+     "position_setpoint_task_reconfigurable",
+     {
+diff --git a/aerial_gym/rl_training/sample_factory/aerialgym_examples/train_aerialgym.py b/aerial_gym/rl_training/sample_factory/aerialgym_examples/train_aerialgym.py
+index 9b81aba..e948137 100644
+--- a/aerial_gym/rl_training/sample_factory/aerialgym_examples/train_aerialgym.py
++++ b/aerial_gym/rl_training/sample_factory/aerialgym_examples/train_aerialgym.py
+@@ -15,6 +15,10 @@ import torch
+ 
+ from torch import Tensor
+ 
++from sample_factory.algo.utils.context import global_model_factory
++from sample_factory.model.encoder import *
++
++
+ from sample_factory.algo.utils.gymnasium_utils import convert_space
+ from sample_factory.cfg.arguments import parse_full_cfg, parse_sf_args
+ from sample_factory.envs.env_utils import register_env
+@@ -23,6 +27,8 @@ from sample_factory.utils.typing import Config, Env
+ from sample_factory.utils.utils import str2bool
+ 
+ 
++from sample_factory.enjoy import enjoy
++
+ class AerialGymVecEnv(gym.Env):
+     """
+     Wrapper for isaacgym environments to make them compatible with the sample factory.
+@@ -34,7 +40,7 @@ class AerialGymVecEnv(gym.Env):
+         self.action_space = convert_space(self.env.action_space)
+ 
+         # isaacgym_examples environments actually return dicts
+-        if obs_key == "obs":
++        if obs_key == "obs" or obs_key == "observations":
+             self.observation_space = gym.spaces.Dict(convert_space(self.env.observation_space))
+         else:
+             raise ValueError(f"Unknown observation key: {obs_key}")
+@@ -140,7 +146,7 @@ def override_default_params_func(env, parser):
+         value_bootstrap=True,  # assuming reward from the last step in the episode can generally be ignored
+         normalize_input=True,
+         normalize_returns=True,  # does not improve results on all envs, but with return normalization we don't need to tune reward scale
+-        save_best_after=int(5e6),
++        save_best_after=int(1e5),
+         serial_mode=True,  # it makes sense to run isaacgym envs in serial mode since most of the parallelism comes from the env itself (although async mode works!)
+         async_rl=True,
+         use_env_info_cache=False,  # speeds up startup
+@@ -192,12 +198,105 @@ env_configs = dict(
+         wandb_project="quad",
+         wandb_user="mihirkulkarni",
+     ),
++    lidar_navigation_task=dict(
++        train_for_env_steps=131000000000,
++        # encoder_conv_architecture="resnet_impala",
++        # encoder_conv_mlp_layers=[],
++        encoder_mlp_layers=[256, 128, 64],
++        use_rnn=True,
++        rnn_num_layers=1,
++        rnn_size=128,
++        rnn_type="gru",
++        gamma=0.98,
++        rollout=32,
++        learning_rate=1e-4,
++        lr_schedule_kl_threshold=0.016,
++        batch_size=1024,
++        num_epochs=4,
++        max_grad_norm=1.0,
++        num_batches_per_epoch=4,
++        exploration_loss_coeff=0.001,
++        with_wandb=False,
++        wandb_project="quad",
++        wandb_user="mihirkulkarni",
++    ),
++
+ )
+ 
++class CustomEncoder(Encoder):
++    """Just an example of how to use a custom model component."""
++
++    def __init__(self, cfg, obs_space):
++        super().__init__(cfg)
++        # the observatiosn are in the following format:
++        # 17 dim state + actions
++        # 80 dim lidar readings
++        
++        # encode lidar readings using conv network and then combine with state vector and pass through MLP
++        # all are flattened into "observations" key
++        self.encoders = nn.ModuleDict()
++
++        state_action_input_size = 17
++        lidar_input_size = 16*20
++        out_size = 0
++        out_size_cnn = 0
++        out_size += obs_space["observations"].shape[0] - lidar_input_size
++
++        # self.encoders["obs_image"] = make_img_encoder(cfg, spaces.Box(low=-1, high=1.5, shape=(1, 16, 20)))
++        # out_size += self.encoders["obs_image"].get_out_size()
++        ###
++        # input is 16 x 20 dims lidar readings
++        self.encoders["obs_image"] = nn.Sequential(
++            nn.Conv2d(1, 16, kernel_size=3, stride=1, padding=1),  # (B, 16, 16, 20)
++            nn.ELU(),
++            nn.MaxPool2d(kernel_size=3, stride=2),  # (B, 16, 8, 10)
++            nn.Conv2d(16, 32, kernel_size=3, stride=1, padding=1), # (B, 32, 8, 10)
++            nn.ELU(),
++            nn.MaxPool2d(kernel_size=3, stride=2),  # (B, 32, 4, 5)
++            nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),  # (B, 64, 4, 5)
++            nn.ELU(),
++            nn.MaxPool2d(kernel_size=2, stride=2),  # (B, 64, 2, 2)
++            nn.Flatten(),  # (B, 64*2*2)
++        )
++        out_size_cnn += 128
++        out_size += out_size_cnn
++        ###
++
++        self.encoder_out_size = out_size
++        mlp_layers = [256, 128, 64]
++        mlp_input_size = out_size
++        mlp = []
++        for layer_size in mlp_layers:
++            mlp.append(nn.Linear(mlp_input_size, layer_size))
++            mlp.append(nn.ELU())
++            mlp_input_size = layer_size
++        self.mlp_head_custom = nn.Sequential(*mlp)
++        if len(mlp_layers) > 0:
++            self.encoder_out_size = mlp_layers[-1]
++        else:
++            self.encoder_out_size = out_size
++            self.mlp_head_custom = nn.Identity()
++
++
++    def forward(self, obs_dict):
++        x_state_action = obs_dict["observations"][:, :17]
++        x_lidar = obs_dict["observations"][:, 17:].unsqueeze(1).view(-1, 1, 16, 20)  # (B, 1, 8, 10)
++        x_lidar_encoding = self.encoders["obs_image"](x_lidar)
++        x = torch.cat([x_state_action, x_lidar_encoding], dim=-1)
++        x = self.mlp_head_custom(x)
++        return x
++
++    def get_out_size(self) -> int:
++        return self.encoder_out_size
++
++def make_custom_encoder(cfg, obs_space):
++    return CustomEncoder(cfg, obs_space)
+ 
+ def register_aerialgym_custom_components():
+     for env_name in env_configs:
+         register_env(env_name, make_aerialgym_env)
++    
++    global_model_factory().register_encoder_factory(make_custom_encoder)
+ 
+ 
+ def parse_aerialgym_cfg(evaluation=False):
+@@ -208,13 +307,16 @@ def parse_aerialgym_cfg(evaluation=False):
+     return final_cfg
+ 
+ 
++from sample_factory.model.actor_critic import create_actor_critic
++
++
+ def main():
+     """Script entry point."""
+     register_aerialgym_custom_components()
+     cfg = parse_aerialgym_cfg()
+     status = run_rl(cfg)
+     return status
+-
++    
+ 
+ if __name__ == "__main__":
+     sys.exit(main())
+diff --git a/aerial_gym/robots/__init__.py b/aerial_gym/robots/__init__.py
+index e880238..67ac884 100644
+--- a/aerial_gym/robots/__init__.py
++++ b/aerial_gym/robots/__init__.py
+@@ -24,6 +24,8 @@ from aerial_gym.robots.base_rov import BaseROV
+ from aerial_gym.robots.base_reconfigurable import BaseReconfigurable
+ from aerial_gym.robots.morphy import Morphy
+ 
++from aerial_gym.config.robot_config.magpie_config import MagpieCfg
++
+ # get robot registry
+ from aerial_gym.registry.robot_registry import robot_registry
+ 
+@@ -45,6 +47,7 @@ robot_registry.register("snakey6", BaseReconfigurable, Snakey6Cfg)
+ robot_registry.register("base_rov", BaseROV, BaseROVCfg)
+ robot_registry.register("lmf1", BaseMultirotor, LMF1Cfg)
+ robot_registry.register("lmf2", BaseMultirotor, LMF2Cfg)
++robot_registry.register("magpie", BaseMultirotor, MagpieCfg)
+ 
+ robot_registry.register("tinyprop", BaseMultirotor, TinyPropCfg)
+ 
+diff --git a/aerial_gym/task/__init__.py b/aerial_gym/task/__init__.py
+index 7dd966d..49d60b0 100644
+--- a/aerial_gym/task/__init__.py
++++ b/aerial_gym/task/__init__.py
+@@ -36,6 +36,11 @@ from aerial_gym.config.task_config.navigation_task_config import (
+     task_config as navigation_task_config,
+ )
+ 
++from aerial_gym.task.lidar_navigation_task.lidar_navigation_task import LiDARNavigationTask
++from aerial_gym.config.task_config.lidar_navigation_task_config import (
++    task_config as lidar_navigation_task_config,
++)
++
+ from aerial_gym.registry.task_registry import task_registry
+ 
+ 
+@@ -93,6 +98,13 @@ task_registry.register_task(
+ )
+ 
+ 
++task_registry.register_task(
++    "lidar_navigation_task",
++    LiDARNavigationTask,
++    lidar_navigation_task_config,
++)
++
++
+ ## Uncomment this to use custom tasks
+ 
+ # from aerial_gym.task.custom_task.custom_task import CustomTask
+diff --git a/aerial_gym/task/navigation_task/navigation_task.py b/aerial_gym/task/navigation_task/navigation_task.py
+index 341920a..ecc1282 100644
+--- a/aerial_gym/task/navigation_task/navigation_task.py
++++ b/aerial_gym/task/navigation_task/navigation_task.py
+@@ -116,12 +116,12 @@ class NavigationTask(BaseTask):
+                     shape=(self.task_config.observation_space_dim,),
+                     dtype=np.float32,
+                 ),
+-                "image_obs": Box(
+-                    low=-1.0,
+-                    high=1.0,
+-                    shape=(1, 135, 240),
+-                    dtype=np.float32,
+-                ),
++                # "image_obs": Box(
++                #     low=-1.0,
++                #     high=1.0,
++                #     shape=(1, 135, 240),
++                #     dtype=np.float32,
++                # ),
+             }
+         )
+         self.action_space = Box(low=-1.0, high=1.0, shape=(4,), dtype=np.float32)
+@@ -138,20 +138,20 @@ class NavigationTask(BaseTask):
+                 device=self.device,
+                 requires_grad=False,
+             ),
+-            "priviliged_obs": torch.zeros(
+-                (
+-                    self.sim_env.num_envs,
+-                    self.task_config.privileged_observation_space_dim,
+-                ),
+-                device=self.device,
+-                requires_grad=False,
+-            ),
+-            "collisions": torch.zeros(
+-                (self.sim_env.num_envs, 1), device=self.device, requires_grad=False
+-            ),
+-            "rewards": torch.zeros(
+-                (self.sim_env.num_envs, 1), device=self.device, requires_grad=False
+-            ),
++            # "priviliged_obs": torch.zeros(
++            #     (
++            #         self.sim_env.num_envs,
++            #         self.task_config.privileged_observation_space_dim,
++            #     ),
++            #     device=self.device,
++            #     requires_grad=False,
++            # ),
++            # "collisions": torch.zeros(
++            #     (self.sim_env.num_envs, 1), device=self.device, requires_grad=False
++            # ),
++            # "rewards": torch.zeros(
++            #     (self.sim_env.num_envs, 1), device=self.device, requires_grad=False
++            # ),
+         }
+ 
+         self.num_task_steps = 0
+@@ -388,11 +388,11 @@ class NavigationTask(BaseTask):
+         self.task_obs["observations"][:, 13:17] = self.obs_dict["robot_actions"]
+         if self.task_config.vae_config.use_vae:
+             self.task_obs["observations"][:, 17:] = self.image_latents
+-        self.task_obs["rewards"] = self.rewards
+-        self.task_obs["terminations"] = self.terminations
+-        self.task_obs["truncations"] = self.truncations
++        # self.task_obs["rewards"] = self.rewards
++        # self.task_obs["terminations"] = self.terminations
++        # self.task_obs["truncations"] = self.truncations
+ 
+-        self.task_obs["image_obs"] = self.obs_dict["depth_range_pixels"]
++        # self.task_obs["image_obs"] = self.obs_dict["depth_range_pixels"]
+ 
+     def compute_rewards_and_crashes(self, obs_dict):
+         robot_position = obs_dict["robot_position"]
+diff --git a/aerial_gym/task/position_setpoint_task_acceleration_sim2real/position_setpoint_task_acceleration_sim2real.py b/aerial_gym/task/position_setpoint_task_acceleration_sim2real/position_setpoint_task_acceleration_sim2real.py
+index 5dd968a..e47e563 100644
+--- a/aerial_gym/task/position_setpoint_task_acceleration_sim2real/position_setpoint_task_acceleration_sim2real.py
++++ b/aerial_gym/task/position_setpoint_task_acceleration_sim2real/position_setpoint_task_acceleration_sim2real.py
+@@ -95,6 +95,7 @@ class PositionSetpointTaskAccelerationSim2Real(BaseTask):
+         self.terminations = self.obs_dict["crashes"]
+         self.truncations = self.obs_dict["truncations"]
+         self.rewards = torch.zeros(self.truncations.shape[0], device=self.device)
++        self.target_yaw = torch.zeros(self.sim_env.num_envs, device=self.device)
+ 
+         self.observation_space = Dict(
+             {"observations": Box(low=-1.0, high=1.0, shape=(13,), dtype=np.float32)}
+@@ -140,15 +141,25 @@ class PositionSetpointTaskAccelerationSim2Real(BaseTask):
+         self.sim_env.delete_env()
+ 
+     def reset(self):
++        # print("\n\n\nresetting ALL envs")
+         self.target_position[:, 0:3] = 0.0  # torch.rand_like(self.target_position) * 10.0
++        self.target_yaw[:] = torch.rand(self.sim_env.num_envs, device=self.device) * 2 * np.pi - np.pi
++        self.actions[:] = 0.0
++        self.prev_actions[:] = 0.0
++        self.prev_actions_vehicle_frame[:] = 0.0
+         self.infos = {}
+         self.sim_env.reset()
+         return self.get_return_tuple()
+ 
+     def reset_idx(self, env_ids):
++        # print("\n\n\n\nresetting envs: ", env_ids)
+         self.target_position[:, 0:3] = (
+             0.0  # (torch.rand_like(self.target_position[env_ids]) * 10.0)
+         )
++        self.target_yaw[env_ids] = torch.rand(len(env_ids), device=self.device) * 2 * np.pi - np.pi
++        self.actions[env_ids] = 0.0
++        self.prev_actions[env_ids] = 0.0
++        self.prev_actions_vehicle_frame[env_ids] = 0.0
+         self.infos = {}
+         self.sim_env.reset_idx(env_ids)
+         return
+@@ -166,7 +177,7 @@ class PositionSetpointTaskAccelerationSim2Real(BaseTask):
+         self.prev_dist[:] = torch.norm(
+             self.target_position - self.obs_dict["robot_position"], dim=1
+         )
+-        self.actions = actions
++        self.actions = torch.clamp(actions, -1.0, 1.0)
+         self.actions[:, 0:3] = 2.0 * self.actions[:, 0:3]
+         # self.action_file.write(f"{self.actions[0].cpu().numpy()[0]}, {self.actions[0].cpu().numpy()[1]}, {self.actions[0].cpu().numpy()[2]}, {self.actions[0].cpu().numpy()[3]},\n")
+         # print(self.actions[0].cpu().numpy())
+@@ -190,6 +201,13 @@ class PositionSetpointTaskAccelerationSim2Real(BaseTask):
+             self.sim_env.sim_steps > self.task_config.episode_len_steps, 1, 0
+         )
+         self.sim_env.post_reward_calculation_step()
++        resets = torch.where(
++            (self.terminations + self.truncations) > 0.0,
++            torch.ones_like(self.terminations),
++            torch.zeros_like(self.terminations),
++        )
++        if torch.sum(resets) > 0.0:
++            self.reset_idx(torch.unique(torch.nonzero(resets).flatten()))
+ 
+         self.infos = {}  # self.obs_dict["infos"]
+ 
+@@ -215,13 +233,19 @@ class PositionSetpointTaskAccelerationSim2Real(BaseTask):
+             * self.obs_dict["robot_orientation"]
+         )
+ 
++        position_error_body_frame = quat_apply_inverse(
++            self.obs_dict["robot_orientation"], position_error
++        )
++
+         euler_angles = ssa(get_euler_xyz_tensor(self.obs_dict["robot_orientation"]))
+         euler_angles_noisy = euler_angles + torch.randn_like(euler_angles) * 0.02
+ 
+         self.task_obs["observations"][:, 0:3] = (
+-            position_error + torch.randn_like(position_error) * 0.03
++            position_error_body_frame + torch.randn_like(position_error_body_frame) * 0.03
+         )
+-        self.task_obs["observations"][:, 3:7] = quat_from_euler_xyz_tensor(euler_angles_noisy)
++        self.task_obs["observations"][:, 3:5] = euler_angles_noisy[:, 0:2]
++        self.task_obs["observations"][:, 5] = ssa(self.target_yaw - euler_angles_noisy[:, 2])
++        self.task_obs["observations"][:, 6] = 0.0
+         self.task_obs["observations"][:, 7:10] = (
+             self.obs_dict["robot_body_linvel"]
+             + torch.randn_like(self.obs_dict["robot_body_linvel"]) * 0.02
+@@ -230,7 +254,7 @@ class PositionSetpointTaskAccelerationSim2Real(BaseTask):
+             self.obs_dict["robot_body_angvel"]
+             + torch.randn_like(self.obs_dict["robot_body_angvel"]) * 0.02
+         )
+-        self.task_obs["observations"][:, 13:] = self.obs_dict["robot_actions"]
++        self.task_obs["observations"][:, 13:] = self.prev_actions
+ 
+         self.task_obs["rewards"] = self.rewards
+         self.task_obs["terminations"] = self.terminations
+@@ -240,35 +264,28 @@ class PositionSetpointTaskAccelerationSim2Real(BaseTask):
+         robot_position = obs_dict["robot_position"]
+         robot_body_linvel = obs_dict["robot_body_linvel"]
+         target_position = self.target_position
+-        robot_vehicle_orientation = obs_dict["robot_vehicle_orientation"]
+         robot_orientation = obs_dict["robot_orientation"]
+         target_orientation = torch.zeros_like(robot_orientation, device=self.device)
+         target_orientation[:, 3] = 1.0
+         angular_velocity = obs_dict["robot_body_angvel"]
+-        root_quats = obs_dict["robot_orientation"]
+ 
+-        pos_error_vehicle_frame = quat_apply_inverse(
++        pos_error_body_frame = quat_apply_inverse(
+             robot_orientation, (target_position - robot_position)
+         )
+ 
+-        self.actions_vehicle_frame[:, 0:3] = quat_rotate(
+-            robot_vehicle_orientation, self.actions[:, 0:3]
+-        )
+-        self.actions_vehicle_frame[:, 3] = self.actions[:, 3]
+-
+         current_yaw = ssa(get_euler_xyz_tensor(robot_orientation))[:, 2]
+-        yaw_error = 0 - current_yaw
++        yaw_error = ssa(self.target_yaw - current_yaw)
+ 
+         return compute_reward(
+-            pos_error_vehicle_frame,
++            pos_error_body_frame,
+             self.prev_dist,
+             yaw_error,
+             robot_body_linvel,
+             angular_velocity,
+             obs_dict["crashes"],
+             1.0,  # obs_dict["curriculum_level_multiplier"],
+-            self.actions_vehicle_frame,
+-            self.prev_actions_vehicle_frame,
++            self.actions,
++            self.prev_actions,
+             self.task_config.reward_parameters,
+         )
+ 
+@@ -315,41 +332,48 @@ def compute_reward(
+     dist = torch.norm(pos_error, dim=1)
+ 
+     pos_reward = (
+-        exp_func(dist, 2.0, 1.0) + exp_func(dist, 3.0, 10.0) + abs_exp_func(dist, 3.0, 50.0)
++        exp_func(dist, 2.0, 1.0) + exp_func(dist, 3.0, 10.0)
+     )
+ 
+-    close_pos_reward = exp_func(dist, 2.0, 1.0)
++    close_pos_reward = exp_func(dist, 2.0, 3.0)
+ 
+     robot_speed = torch.norm(robot_linvels, dim=1)
++    robot_vel_direction = robot_linvels / (robot_speed.unsqueeze(1) + 1e-6)
++    dist_unit_vec = pos_error / (dist.unsqueeze(1) + 1e-6)
+ 
+-    speed_reward = exp_func(robot_speed, 2.0, 2.5)
++    robot_speed_towards_target = 2.0*torch.sum(robot_vel_direction * dist_unit_vec, dim=1) * torch.clamp(dist*0.5, 0.0, 1.0)
+ 
+-    action_penalty = torch.sum(abs_exp_penalty_func(current_action, 0.3, 4.0), dim=1)
+-    action_difference = current_action - prev_actions
+-    action_difference_penalty = torch.sum(abs_exp_penalty_func(action_difference, 0.4, 6.0), dim=1)
++    too_fast_penalty = exp_penalty_func(
++        torch.clamp(robot_speed - 2.0, min=0.0),  # only penalize speeds above 2 m/s
++        2.0,
++        6.0,
++    )
+ 
+-    closer_reward = torch.where(
+-        dist < prev_dist, 400.0 * (prev_dist - dist), 1200 * (prev_dist - dist)
++    low_speed_reward = exp_func(
++        robot_speed,
++        1.0, 3.0
+     )
+ 
+-    yaw_error_reward = abs_exp_func(yaw_error, 3.0, 5.0)
++    action_penalty = torch.sum(exp_penalty_func(current_action, 0.4, 20.0), dim=1)
++    action_difference = current_action - prev_actions
++    action_difference_penalty = torch.sum(exp_penalty_func(action_difference, 0.05, 30.0), dim=1)
++
++    yaw_error_reward = abs_exp_func(yaw_error, 1.0, 5.0)
+ 
+     total_reward = (
+-        (
+-            pos_reward
+-            + pos_reward * (closer_reward / 9.0 + action_penalty / 3.0 + speed_reward / 1.5)
+-        )
++        pos_reward
++        + robot_speed_towards_target
++        + too_fast_penalty
++        + yaw_error_reward
++        + close_pos_reward * ( low_speed_reward + yaw_error_reward )
+         + action_penalty
++        # + close_pos_reward * (action_penalty / 3.0)
+         + action_difference_penalty
+-        + closer_reward
+-        + yaw_error_reward
+-        + close_pos_reward
+-        + speed_reward * 0.2
+     )
+ 
+     total_reward[:] = curriculum_level_multiplier * total_reward
+ 
+-    crashes[:] = torch.where(dist > 10.0, torch.ones_like(crashes), crashes)
++    crashes[:] = torch.where(dist > 6.0, torch.ones_like(crashes), crashes)
+ 
+     total_reward[:] = torch.where(crashes > 0.0, -50 * torch.ones_like(total_reward), total_reward)
+ 
+diff --git a/aerial_gym/utils/vae/VAE.py b/aerial_gym/utils/vae/VAE.py
+index fc6ab6d..5b90812 100644
+--- a/aerial_gym/utils/vae/VAE.py
++++ b/aerial_gym/utils/vae/VAE.py
+@@ -154,16 +154,6 @@ class ImgEncoder(nn.Module):
+         return x
+ 
+ 
+-class Lambda(nn.Module):
+-    """Lambda function that accepts tensors as input."""
+-
+-    def __init__(self, func):
+-        super(Lambda, self).__init__()
+-        self.func = func
+-
+-    def forward(self, x):
+-        return self.func(x)
+-
+ 
+ class VAE(nn.Module):
+     """Variational Autoencoder for reconstruction of depth images."""
+@@ -189,9 +179,6 @@ class VAE(nn.Module):
+             input_dim=1, latent_dim=self.latent_dim, with_logits=self.with_logits
+         )
+ 
+-        self.mean_params = Lambda(lambda x: x[:, : self.latent_dim])  # mean parameters
+-        self.logvar_params = Lambda(lambda x: x[:, self.latent_dim :])  # log variance parameters
+-
+     def forward(self, img):
+         """Do a forward pass of the VAE. Generates a reconstructed image based on img
+         Parameters
+@@ -204,8 +191,8 @@ class VAE(nn.Module):
+         z = self.encoder(img)
+ 
+         # reparametrization trick
+-        mean = self.mean_params(z)
+-        logvar = self.logvar_params(z)
++        mean = z[:, : self.latent_dim]
++        logvar = z[:, self.latent_dim :]
+         std = torch.exp(0.5 * logvar)
+         eps = torch.randn_like(std)
+         if self.inference_mode:
+@@ -228,8 +215,8 @@ class VAE(nn.Module):
+         z = self.encoder(img)
+ 
+         # reparametrization trick
+-        mean = self.mean_params(z)
+-        logvar = self.logvar_params(z)
++        mean = z[:, : self.latent_dim]
++        logvar = z[:, self.latent_dim :]
+         std = torch.exp(0.5 * logvar)
+         eps = torch.randn_like(std)
+         if self.inference_mode:
+@@ -249,8 +236,8 @@ class VAE(nn.Module):
+         """
+         z = self.encoder(img)
+ 
+-        means = self.mean_params(z)
+-        logvars = self.logvar_params(z)
++        means = z[:, : self.latent_dim]
++        logvars = z[:, self.latent_dim :]
+         std = torch.exp(0.5 * logvars)
+         eps = torch.randn_like(logvars)
+         if self.inference_mode:
+diff --git a/aerial_gym/utils/vae/vae_image_encoder.py b/aerial_gym/utils/vae/vae_image_encoder.py
+index 8cfc0ae..515916c 100644
+--- a/aerial_gym/utils/vae/vae_image_encoder.py
++++ b/aerial_gym/utils/vae/vae_image_encoder.py
+@@ -1,4 +1,5 @@
+ import torch
++import torch.nn as nn
+ import os
+ from aerial_gym.utils.vae.VAE import VAE
+ 
+@@ -14,12 +15,13 @@ def clean_state_dict(state_dict):
+     return clean_dict
+ 
+ 
+-class VAEImageEncoder:
++class VAEImageEncoder(nn.Module):
+     """
+     Class that wraps around the VAE class for efficient inference for the aerial_gym class
+     """
+ 
+     def __init__(self, config, device="cuda:0"):
++        super(VAEImageEncoder, self).__init__()
+         self.config = config
+         self.vae_model = VAE(input_dim=1, latent_dim=self.config.latent_dims).to(device)
+         # combine module path with model file name
+@@ -53,6 +55,9 @@ class VAEImageEncoder:
+             returned_val = means
+         return returned_val
+ 
++    def forward(self, image_tensors):
++        return self.encode(image_tensors)
++
+     def decode(self, latent_spaces):
+         """
+         Decode a latent space to reconstruct full images
+diff --git a/resources/robots/lmf2/model.urdf b/resources/robots/lmf2/model.urdf
+index b33ff51..bbf2646 100644
+--- a/resources/robots/lmf2/model.urdf
++++ b/resources/robots/lmf2/model.urdf
+@@ -13,7 +13,7 @@
+     <collision>
+       <origin xyz="0 0 0"/>
+       <geometry>
+-        <box size="0.5 0.5 0.5"/>
++        <box size="0.7 0.7 0.5"/>
+       </geometry>
+     </collision>
+     <inertial>
