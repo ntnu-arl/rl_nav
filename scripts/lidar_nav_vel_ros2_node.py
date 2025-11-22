@@ -4,10 +4,11 @@ import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image, PointCloud2
 from geometry_msgs.msg import Twist, PoseStamped, TwistStamped
-from nav_msgs.msg import Odometry
+from nav_msgs.msg import Odometry, Path
 from std_msgs.msg import Empty
 from mavros_msgs.msg import State
-
+import ros2_numpy as rnp
+import time
 import cv2
 import numpy as np
 import torch
@@ -16,7 +17,8 @@ from scipy.spatial.transform import Rotation as R
 
 # Sample Factory inference (your standalone file)
 from standalone_inference import SF_model_initializer
-import time
+
+from scipy.ndimage import median_filter
 
 
 def ssa(angle):
@@ -48,6 +50,7 @@ class Config:
     ACTION_TOPIC = "/rmf/cmd/vel"
     TARGET_TOPIC = "/target"
     MAVROS_STATE_TOPIC = "/rmf/mavros/state"
+    PATH_TOPIC = "/path"
     
     # Action transformation (match your training config)
     # These should match the action_transformation_function in your task config
@@ -66,6 +69,9 @@ class Config:
     # Lidar
     LIDAR_MAX_RANGE = 10.0
     LIDAR_MIN_RANGE = 0.2
+
+    MEDIAN_FILTER = False
+    MEDIAN_FILTER_KERNEL_SIZE = 3
 
 cfg = Config()
 
@@ -87,6 +93,16 @@ class EMA:
             self.value = self.alpha * self.value + (1 - self.alpha) * new_value
         return self.value
 
+# ============================================================================
+# Filtering of Bins for Removing point Noise
+# ============================================================================
+
+def bin_filter(bins, kernel_size=3):
+    if cfg.MEDIAN_FILTER == True:
+        bins_filtered = median_filter(bins.cpu().numpy(), size=kernel_size)
+        return torch.from_numpy(bins_filtered).to(bins.device)
+    else:
+        return bins
 
 # ============================================================================
 # LiDAR Binning and Downsampling from PointCloud2
@@ -108,7 +124,7 @@ def binning_and_downsampling(points3d_np):
     r[r > cfg.LIDAR_MAX_RANGE] = cfg.LIDAR_MAX_RANGE
     r[np.isnan(r)] = cfg.LIDAR_MAX_RANGE
     r[np.isinf(r)] = cfg.LIDAR_MAX_RANGE
-    spherical_points = torch.from_numpy(np.stack([r, theta, phi], axis=1))  # (N, 3)
+    spherical_points = torch.from_numpy(np.stack([r, theta, phi], axis=1)).to(cfg.DEVICE)  # (N, 3)
     azimuth_bins = 480
     elevation_bins = 48
     # azimuth goes from 0 to 2pi
@@ -129,7 +145,7 @@ def binning_and_downsampling(points3d_np):
 
     # Flatten the indices for scatter_reduce
     flat_indices = (azimuth_idx * elevation_bins + elevation_idx)
-    input_tensor = torch.full((azimuth_bins * elevation_bins,), 50.0)
+    input_tensor = torch.full((azimuth_bins * elevation_bins,), 50.0).to(cfg.DEVICE)
     try:
         # Use scatter_reduce to compute the minimum r per bin
         bins = torch.scatter_reduce(
@@ -140,8 +156,10 @@ def binning_and_downsampling(points3d_np):
             reduce='amin',
             include_self=False
         )
+        # try filtering the bins to remove noise
         bins = bins.view(azimuth_bins, elevation_bins)
-        bins2 = bins.T.unsqueeze(0).unsqueeze(0)  # add batch and channel dims
+        bins_filter = bin_filter(bins, kernel_size=cfg.MEDIAN_FILTER_KERNEL_SIZE)
+        bins2 = bins_filter.T.unsqueeze(0).unsqueeze(0)  # add batch and channel dims
         bins2_flipped = torch.flip(bins2, [3])  # flip horizontally to match original orientation
         bins_downsampled = -torch.nn.functional.max_pool2d(
             -bins2_flipped,
@@ -152,6 +170,8 @@ def binning_and_downsampling(points3d_np):
         bins_downsampled = torch.full((1, 1, 16, 20), cfg.LIDAR_MAX_RANGE)
     return bins, bins_downsampled
 
+   
+
 # ============================================================================
 # Parse Pointcloud Optimized
 # ============================================================================
@@ -161,34 +181,13 @@ def parse_pointcloud_optimized(msg):
     Most optimized version - checks format first, then uses best method
     This is the RECOMMENDED method
     """
-    field_offsets = {field.name: field.offset for field in msg.fields}
-    x_offset = field_offsets.get('x', None)
-    y_offset = field_offsets.get('y', None)
-    z_offset = field_offsets.get('z', None)
-    
-    if x_offset is None or y_offset is None or z_offset is None:
-        raise ValueError("PointCloud2 must have x, y, z fields")
-    
-    point_step = msg.point_step
-    
-    # Check if xyz are packed at the beginning (most common case)
-    if x_offset == 0 and y_offset == 4 and z_offset == 8:
-        # Ultra-fast path for standard layout
-        num_floats_per_point = point_step // 4
-        points3d_np = np.frombuffer(msg.data, dtype=np.float32).reshape(-1, num_floats_per_point)[:, :3].copy()
-    else:
-        print("Non-standard PointCloud2 layout detected, using slower parsing method.")
-        # Fast path for non-standard layouts using numpy strides
-        num_points = len(msg.data) // point_step
-        data = np.frombuffer(msg.data, dtype=np.uint8)
-        
-        # Use stride tricks for efficient extraction
-        points3d_np = np.zeros((num_points, 3), dtype=np.float32)
-        
-        for idx, offset in enumerate([x_offset, y_offset, z_offset]):
-            byte_indices = np.arange(num_points)[:, None] * point_step + offset + np.arange(4)
-            points3d_np[:, idx] = data[byte_indices].view(np.float32).flatten()
-    
+    pc = rnp.numpify(msg) #pc.shape=(720,1280)
+    height = pc.shape[0]
+    width = pc.shape[1]
+    points3d_np = np.zeros((height * width, 3), dtype=np.float32)
+    points3d_np[:, 0] = np.resize(pc['x'], height * width)
+    points3d_np[:, 1] = np.resize(pc['y'], height * width)
+    points3d_np[:, 2] = np.resize(pc['z'], height * width)
     return points3d_np
 
 
@@ -211,6 +210,7 @@ class LidarNavigationNode(Node):
         self.target_position = np.zeros(3)
         self.target_position[0] = 5.0
         self.target_position[2] = 2.0
+        self.target_yaw = 0.0
         self.rpy = np.zeros(3)
         self.body_lin_vel = np.zeros(3)
         self.body_ang_vel = np.zeros(3)
@@ -239,6 +239,7 @@ class LidarNavigationNode(Node):
         self.pointcloud_sub = self.create_subscription(PointCloud2, cfg.POINTCLOUD_TOPIC, self.pointcloud_callback, 1)
         self.odom_sub = self.create_subscription(Odometry, cfg.ODOM_TOPIC, self.odom_callback, 1)
         self.target_sub = self.create_subscription(PoseStamped, cfg.TARGET_TOPIC, self.target_callback, 1)
+        self.path_sub = self.create_subscription(Path, cfg.PATH_TOPIC, self.path_callback, 1)
         self.reset_sub = self.create_subscription(Empty, "/reset", self.reset_callback, 1)
         
         if cfg.USE_MAVROS_STATE:
@@ -279,11 +280,21 @@ class LidarNavigationNode(Node):
             msg.pose.position.y,
             msg.pose.position.z
         ])
+        # Extract target yaw
+        q = msg.pose.orientation
+        rot = R.from_quat([q.x, q.y, q.z, q.w], scalar_first=False)
+        self.target_yaw = ssa(rot.as_euler('xyz', degrees=False)[2])
+
         # Reset on new target
         self.policy.reset()
         self.prev_action = np.zeros(cfg.ACTION_DIM)
         self.action_filter.reset()
-        self.get_logger().info(f"New target: {self.target_position}")
+        self.get_logger().info(f"New target: {self.target_position}, yaw: {self.target_yaw:.3f}")
+    
+    def path_callback(self, msg):
+        """Extract first pose from path and update target"""
+        if len(msg.poses) > 0:
+            self.target_callback(msg.poses[0])
     
     def reset_callback(self, msg):
         """Reset network state"""
@@ -324,7 +335,6 @@ class LidarNavigationNode(Node):
         # Distance to target
         dist_to_target = np.linalg.norm(vec_to_target_vehicle)
         clamped_dist = np.clip(dist_to_target, 0.0, 5.0)
-        # clamped_dist *= 1.5
         
         # Unit vector to target
         unit_vec_to_target = vec_to_target_vehicle / (dist_to_target + 1e-6)
@@ -334,8 +344,7 @@ class LidarNavigationNode(Node):
         self.state_obs_cpu[3] = clamped_dist
         self.state_obs_cpu[4] = self.rpy[0]  # roll
         self.state_obs_cpu[5] = self.rpy[1]  # pitch
-        self.state_obs_cpu[6] = ssa(np.pi/2.0 - self.rpy[2])  # yaw to target (desired yaw is 0 in vehicle frame)
-        # print("yaw to target (rad):", self.state_obs_cpu[6].item())
+        self.state_obs_cpu[6] = ssa(self.target_yaw - self.rpy[2])  # yaw to target
         self.state_obs_cpu[7:10] = torch.from_numpy(self.body_lin_vel).float()
         self.state_obs_cpu[10:13] = torch.from_numpy(self.body_ang_vel).float()
         self.state_obs_cpu[13:17] = torch.from_numpy(self.prev_action).float()
@@ -361,7 +370,6 @@ class LidarNavigationNode(Node):
         action = np.clip(action, -1.0, 1.0)
         action[0] = -(action[0] + 1.0)
         scaled_action = action * cfg.ACTION_SCALE
-        # print("Transformed action:", scaled_action)
         return scaled_action
 
     
@@ -381,6 +389,9 @@ class LidarNavigationNode(Node):
         twist_msg.linear.y = filtered_vel[1]
         twist_msg.linear.z = filtered_vel[2]
         twist_msg.angular.z = filtered_vel[3]
+
+        # print publising action:
+        print("Publishing action:", twist_msg)
         
         # Publish
         self.filtered_action_pub.publish(twist_msg)

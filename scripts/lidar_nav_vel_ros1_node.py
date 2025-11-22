@@ -3,10 +3,10 @@
 import rospy
 from sensor_msgs.msg import Image, PointCloud2
 from geometry_msgs.msg import Twist, PoseStamped, TwistStamped
-from nav_msgs.msg import Odometry
+from nav_msgs.msg import Odometry, Path
 from std_msgs.msg import Empty
 from mavros_msgs.msg import State
-import ros_numpy
+import ros_numpy as rnp
 import time
 import cv2
 import numpy as np
@@ -49,6 +49,7 @@ class Config:
     ACTION_TOPIC = "/rmf/cmd/vel"
     TARGET_TOPIC = "/target"
     MAVROS_STATE_TOPIC = "/mavros/state"
+    PATH_TOPIC = "/path"
     
     # Action transformation (match your training config)
     # These should match the action_transformation_function in your task config
@@ -144,28 +145,28 @@ def binning_and_downsampling(points3d_np):
     # Flatten the indices for scatter_reduce
     flat_indices = (azimuth_idx * elevation_bins + elevation_idx)
     input_tensor = torch.full((azimuth_bins * elevation_bins,), 50.0).to(cfg.DEVICE)
-    # try:
-    # Use scatter_reduce to compute the minimum r per bin
-    bins = torch.scatter_reduce(
-        input=input_tensor,
-        dim=0,
-        index=flat_indices,
-        src=spherical_points[:, 0],
-        reduce='amin',
-        include_self=False
-    )
-    # try filtering the bins to remove noise
-    bins = bins.view(azimuth_bins, elevation_bins)
-    bins_filter = bin_filter(bins, kernel_size=cfg.MEDIAN_FILTER_KERNEL_SIZE)
-    bins2 = bins_filter.T.unsqueeze(0).unsqueeze(0)  # add batch and channel dims
-    bins2_flipped = torch.flip(bins2, [3])  # flip horizontally to match original orientation
-    bins_downsampled = -torch.nn.functional.max_pool2d(
-        -bins2_flipped,
-        kernel_size=(bins2.shape[2]//16, bins2.shape[3]//20)
-    )
-    # except Exception as e:
-    #     print("Error during scatter_reduce:", e)
-    #     bins_downsampled = torch.full((1, 1, 16, 20), cfg.LIDAR_MAX_RANGE)
+    try:
+        # Use scatter_reduce to compute the minimum r per bin
+        bins = torch.scatter_reduce(
+            input=input_tensor,
+            dim=0,
+            index=flat_indices,
+            src=spherical_points[:, 0],
+            reduce='amin',
+            include_self=False
+        )
+        # try filtering the bins to remove noise
+        bins = bins.view(azimuth_bins, elevation_bins)
+        bins_filter = bin_filter(bins, kernel_size=cfg.MEDIAN_FILTER_KERNEL_SIZE)
+        bins2 = bins_filter.T.unsqueeze(0).unsqueeze(0)  # add batch and channel dims
+        bins2_flipped = torch.flip(bins2, [3])  # flip horizontally to match original orientation
+        bins_downsampled = -torch.nn.functional.max_pool2d(
+            -bins2_flipped,
+            kernel_size=(bins2.shape[2]//16, bins2.shape[3]//20)
+        )
+    except Exception as e:
+        print("Error during scatter_reduce:", e)
+        bins_downsampled = torch.full((1, 1, 16, 20), cfg.LIDAR_MAX_RANGE)
     return bins, bins_downsampled
 
    
@@ -179,7 +180,7 @@ def parse_pointcloud_optimized(msg):
     Most optimized version - checks format first, then uses best method
     This is the RECOMMENDED method
     """
-    pc = ros_numpy.numpify(msg) #pc.shape=(720,1280)
+    pc = rnp.numpify(msg) #pc.shape=(720,1280)
     height = pc.shape[0]
     width = pc.shape[1]
     points3d_np = np.zeros((height * width, 3), dtype=np.float32)
@@ -208,6 +209,7 @@ class LidarNavigationNode:
         self.target_position = np.zeros(3)
         self.target_position[0] = 5.0
         self.target_position[2] = 2.0
+        self.target_yaw = 0.0
         self.rpy = np.zeros(3)
         self.body_lin_vel = np.zeros(3)
         self.body_ang_vel = np.zeros(3)
@@ -236,6 +238,7 @@ class LidarNavigationNode:
         self.pointcloud_sub = rospy.Subscriber(cfg.POINTCLOUD_TOPIC, PointCloud2, self.pointcloud_callback, queue_size=1)
         self.odom_sub = rospy.Subscriber(cfg.ODOM_TOPIC, Odometry, self.odom_callback, queue_size=1)
         self.target_sub = rospy.Subscriber(cfg.TARGET_TOPIC, PoseStamped, self.target_callback, queue_size=1)
+        self.path_sub = rospy.Subscriber(cfg.PATH_TOPIC, Path, self.path_callback, queue_size=1)
         self.reset_sub = rospy.Subscriber("/reset", Empty, self.reset_callback, queue_size=1)
         
         if cfg.USE_MAVROS_STATE:
@@ -276,11 +279,21 @@ class LidarNavigationNode:
             msg.pose.position.y,
             msg.pose.position.z
         ])
+        # Extract target yaw
+        q = msg.pose.orientation
+        rot = R.from_quat([q.x, q.y, q.z, q.w], scalar_first=False)
+        self.target_yaw = ssa(rot.as_euler('xyz', degrees=False)[2])
+
         # Reset on new target
         self.policy.reset()
         self.prev_action = np.zeros(cfg.ACTION_DIM)
         self.action_filter.reset()
-        rospy.loginfo(f"New target: {self.target_position}")
+        rospy.loginfo(f"New target: {self.target_position}, yaw: {self.target_yaw:.3f}")
+    
+    def path_callback(self, msg):
+        """Extract first pose from path and update target"""
+        if len(msg.poses) > 0:
+            self.target_callback(msg.poses[0])
     
     def reset_callback(self, msg):
         """Reset network state"""
@@ -330,7 +343,7 @@ class LidarNavigationNode:
         self.state_obs_cpu[3] = clamped_dist
         self.state_obs_cpu[4] = self.rpy[0]  # roll
         self.state_obs_cpu[5] = self.rpy[1]  # pitch
-        self.state_obs_cpu[6] = ssa(0.0 - self.rpy[2])  # yaw to target (desired yaw is 0 in vehicle frame)
+        self.state_obs_cpu[6] = ssa(self.target_yaw - self.rpy[2])  # yaw to target
         self.state_obs_cpu[7:10] = torch.from_numpy(self.body_lin_vel).float()
         self.state_obs_cpu[10:13] = torch.from_numpy(self.body_ang_vel).float()
         self.state_obs_cpu[13:17] = torch.from_numpy(self.prev_action).float()
