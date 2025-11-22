@@ -2,6 +2,7 @@
 
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
 from sensor_msgs.msg import Image, PointCloud2
 from geometry_msgs.msg import Twist, PoseStamped, TwistStamped
 from nav_msgs.msg import Odometry, Path
@@ -230,11 +231,18 @@ class LidarNavigationNode(Node):
         self.enable = False
         self.action_filter = EMA(alpha=cfg.ACTION_FILTER_ALPHA)
         
+        # QoS profile for reliable delivery
+        reliable_qos = QoSProfile(
+            reliability=ReliabilityPolicy.RELIABLE,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=10
+        )
+
         # Publishers
-        self.action_pub = self.create_publisher(Twist, cfg.ACTION_TOPIC, 1)
+        self.action_pub = self.create_publisher(Twist, cfg.ACTION_TOPIC, reliable_qos)
         self.action_viz_pub = self.create_publisher(TwistStamped, cfg.ACTION_TOPIC + "_viz", 1)
-        self.filtered_action_pub = self.create_publisher(Twist, cfg.ACTION_TOPIC + "_filtered", 1)
-        self.local_setpoint_pub = self.create_publisher(PositionTarget, cfg.MAVROS_CMD_TOPIC, 1)
+        self.filtered_action_pub = self.create_publisher(Twist, cfg.ACTION_TOPIC + "_filtered", reliable_qos)
+        self.local_setpoint_pub = self.create_publisher(PositionTarget, cfg.MAVROS_CMD_TOPIC, reliable_qos)
         
         # Subscribers
         self.image_sub = self.create_subscription(Image, cfg.IMAGE_TOPIC, self.image_callback, 1)
