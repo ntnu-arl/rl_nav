@@ -5,7 +5,7 @@ from sensor_msgs.msg import Image, PointCloud2
 from geometry_msgs.msg import Twist, PoseStamped, TwistStamped
 from nav_msgs.msg import Odometry, Path
 from std_msgs.msg import Empty
-from mavros_msgs.msg import State
+from mavros_msgs.msg import State, PositionTarget
 import ros_numpy as rnp
 import time
 import cv2
@@ -50,6 +50,7 @@ class Config:
     TARGET_TOPIC = "/target"
     MAVROS_STATE_TOPIC = "/mavros/state"
     PATH_TOPIC = "/path"
+    MAVROS_CMD_TOPIC = "/mavros/setpoint_raw/local"
     
     # Action transformation (match your training config)
     # These should match the action_transformation_function in your task config
@@ -232,6 +233,7 @@ class LidarNavigationNode:
         self.action_pub = rospy.Publisher(cfg.ACTION_TOPIC, Twist, queue_size=1)
         self.action_viz_pub = rospy.Publisher(cfg.ACTION_TOPIC + "_viz", TwistStamped, queue_size=1)
         self.filtered_action_pub = rospy.Publisher(cfg.ACTION_TOPIC + "_filtered", Twist, queue_size=1)
+        self.local_setpoint_pub = rospy.Publisher(cfg.MAVROS_CMD_TOPIC, PositionTarget, queue_size=1)
         
         # Subscribers
         self.image_sub = rospy.Subscriber(cfg.IMAGE_TOPIC, Image, self.image_callback, queue_size=1)
@@ -402,6 +404,26 @@ class LidarNavigationNode:
         viz_msg.header.frame_id = cfg.BODY_FRAME_ID
         viz_msg.twist = twist_msg
         self.action_viz_pub.publish(viz_msg)
+
+        # Publish PositionTarget
+        target_msg = PositionTarget()
+        target_msg.header.stamp = rospy.Time.now()
+        target_msg.header.frame_id = "mimosa_body"
+        target_msg.coordinate_frame = PositionTarget.FRAME_BODY_NED
+        target_msg.type_mask = (
+            PositionTarget.IGNORE_PX |
+            PositionTarget.IGNORE_PY |
+            PositionTarget.IGNORE_PZ |
+            PositionTarget.IGNORE_AFX |
+            PositionTarget.IGNORE_AFY |
+            PositionTarget.IGNORE_AFZ |
+            PositionTarget.IGNORE_YAW
+        )
+        target_msg.velocity.x = filtered_vel[0]
+        target_msg.velocity.y = filtered_vel[1]
+        target_msg.velocity.z = filtered_vel[2]
+        target_msg.yaw_rate = filtered_vel[3]
+        self.local_setpoint_pub.publish(target_msg)
     
     def pointcloud_callback(self, msg):
         """Process incoming point cloud (if using lidar instead of depth image)"""
