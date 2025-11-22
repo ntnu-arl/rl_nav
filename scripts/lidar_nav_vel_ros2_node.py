@@ -56,24 +56,24 @@ class Config:
     
     # Action transformation (match your training config)
     # These should match the action_transformation_function in your task config
-    ACTION_SCALE = np.array([1.0, 1.0, 1.2, 1.0])  # m/s
+    ACTION_SCALE = np.array([1.0, 1.0, 0.75, 1.0])  # m/s
     
     # Frame IDs
     BODY_FRAME_ID = "mimosa_body"
     
     # Control
     USE_MAVROS_STATE = False
-    ACTION_FILTER_ALPHA = 0.1  # EMA filter
+    ACTION_FILTER_ALPHA = 0.3  # EMA filter
     
     # Device
     DEVICE = "cuda:0"  # Default device, can be overridden by command line arg
 
     # Lidar
     LIDAR_MAX_RANGE = 10.0
-    LIDAR_MIN_RANGE = 0.2
+    LIDAR_MIN_RANGE = 0.4
 
-    MEDIAN_FILTER = False
-    MEDIAN_FILTER_KERNEL_SIZE = 3
+    MEDIAN_FILTER = True
+    MEDIAN_FILTER_KERNEL_SIZE = 7
 
 cfg = Config()
 
