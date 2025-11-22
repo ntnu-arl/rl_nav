@@ -45,12 +45,12 @@ class Config:
     
     # ROS topics
     IMAGE_TOPIC = "/m100/front/depth_image"
-    POINTCLOUD_TOPIC = "/rmf/lidar/points"
-    ODOM_TOPIC = "/rmf/odom"
-    ACTION_TOPIC = "/rmf/cmd/vel"
+    POINTCLOUD_TOPIC = "/rslidar_points"
+    ODOM_TOPIC = "/msf_core/odometry"
+    ACTION_TOPIC = "/cmd_vel"
     TARGET_TOPIC = "/target"
     MAVROS_STATE_TOPIC = "/rmf/mavros/state"
-    PATH_TOPIC = "/path"
+    PATH_TOPIC = "/gbplanner_path"
     MAVROS_CMD_TOPIC = "/mavros/setpoint_raw/local"
     
     # Action transformation (match your training config)
@@ -58,7 +58,7 @@ class Config:
     ACTION_SCALE = np.array([1.0, 1.0, 1.2, 1.0])  # m/s
     
     # Frame IDs
-    BODY_FRAME_ID = "rmf/base_link"
+    BODY_FRAME_ID = "mimosa_body"
     
     # Control
     USE_MAVROS_STATE = False
@@ -409,7 +409,7 @@ class LidarNavigationNode(Node):
         # Publish PositionTarget
         target_msg = PositionTarget()
         target_msg.header.stamp = self.get_clock().now().to_msg()
-        target_msg.header.frame_id = "mimosa_body"
+        target_msg.header.frame_id = cfg.BODY_FRAME_ID
         target_msg.coordinate_frame = PositionTarget.FRAME_BODY_NED
         target_msg.type_mask = (
             PositionTarget.IGNORE_PX |
