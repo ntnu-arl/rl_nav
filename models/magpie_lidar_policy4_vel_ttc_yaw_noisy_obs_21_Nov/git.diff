@@ -1,0 +1,30 @@
+diff --git a/aerial_gym/task/lidar_navigation_task/lidar_navigation_task.py b/aerial_gym/task/lidar_navigation_task/lidar_navigation_task.py
+index 4405e45..9daf7a9 100644
+--- a/aerial_gym/task/lidar_navigation_task/lidar_navigation_task.py
++++ b/aerial_gym/task/lidar_navigation_task/lidar_navigation_task.py
+@@ -465,7 +465,7 @@ class LiDARNavigationTask(BaseTask):
+             (self.target_position - self.obs_dict["robot_position"]),
+         )
+         perturbed_vec_to_tgt = vec_to_tgt + 0.1 * \
+-            2 * (torch.rand_like(vec_to_tgt - 0.5))
++            2 * (torch.rand_like(vec_to_tgt) - 0.5)
+         dist_to_tgt = torch.norm(vec_to_tgt, dim=-1)
+         perturbed_unit_vec_to_tgt = perturbed_vec_to_tgt / \
+             dist_to_tgt.unsqueeze(1)
+@@ -481,6 +481,7 @@ class LiDARNavigationTask(BaseTask):
+         self.task_obs["observations"][:, 6] = ssa(
+             self.target_yaw - euler_angles[:, 2]
+         )
++        # print("yaw error obs: ", self.task_obs["observations"][0, 6])
+         self.task_obs["observations"][:,
+                                       7:10] = self.obs_dict["robot_body_linvel"]
+         self.task_obs["observations"][:,
+@@ -604,7 +605,7 @@ def compute_reward(
+     # stable at goal reward 
+     low_vel_reward = erf(1.5, 10.0, robot_vel_norm) + erf(1.5, 0.5, robot_vel_norm)
+ 
+-    correct_yaw_reward = erf(1.0, 1.0, yaw_error) + erf(2.0, 15.0, yaw_error)
++    correct_yaw_reward = erf(2.0, 0.5, yaw_error) + erf(4.0, 15.0, yaw_error)
+ 
+     low_angvel_reward = erf(1.0, 8.0, robot_body_angvel[:, 2])
+ 

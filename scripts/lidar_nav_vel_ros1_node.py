@@ -17,6 +17,8 @@ from scipy.spatial.transform import Rotation as R
 # Sample Factory inference (your standalone file)
 from standalone_inference import SF_model_initializer
 
+from scipy.ndimage import median_filter
+
 
 def ssa(angle):
     """Wrap angle to [-pi, pi]"""
@@ -50,8 +52,7 @@ class Config:
     
     # Action transformation (match your training config)
     # These should match the action_transformation_function in your task config
-    SPEED_SCALE = 1.5
-    YAW_RATE_SCALE = 1.0
+    ACTION_SCALE = np.array([1.0, 1.0, 2.0, 1.0])  # m/s
     
     # Frame IDs
     BODY_FRAME_ID = "mimosa_body"
@@ -65,7 +66,10 @@ class Config:
 
     # Lidar
     LIDAR_MAX_RANGE = 10.0
-    LIDAR_MIN_RANGE = 01.0
+    LIDAR_MIN_RANGE = 0.45
+
+    MEDIAN_FILTER = False
+    MEDIAN_FILTER_KERNEL_SIZE = 3
 
 cfg = Config()
 
@@ -88,6 +92,17 @@ class EMA:
         return self.value
 
 # ============================================================================
+# Filtering of Bins for Removing point Noise
+# ============================================================================
+
+def bin_filter(bins, kernel_size=3):
+    if cfg.MEDIAN_FILTER == True:
+        bins_filtered = median_filter(bins.cpu().numpy(), size=kernel_size)
+        return torch.from_numpy(bins_filtered).to(bins.device)
+    else:
+        return bins
+
+# ============================================================================
 # LiDAR Binning and Downsampling from PointCloud2
 # ============================================================================
 
@@ -107,7 +122,7 @@ def binning_and_downsampling(points3d_np):
     r[r > cfg.LIDAR_MAX_RANGE] = cfg.LIDAR_MAX_RANGE
     r[np.isnan(r)] = cfg.LIDAR_MAX_RANGE
     r[np.isinf(r)] = cfg.LIDAR_MAX_RANGE
-    spherical_points = torch.from_numpy(np.stack([r, theta, phi], axis=1))  # (N, 3)
+    spherical_points = torch.from_numpy(np.stack([r, theta, phi], axis=1)).to(cfg.DEVICE)  # (N, 3)
     azimuth_bins = 480
     elevation_bins = 48
     # azimuth goes from 0 to 2pi
@@ -128,28 +143,32 @@ def binning_and_downsampling(points3d_np):
 
     # Flatten the indices for scatter_reduce
     flat_indices = (azimuth_idx * elevation_bins + elevation_idx)
-    input_tensor = torch.full((azimuth_bins * elevation_bins,), 50.0)
-    try:
-        # Use scatter_reduce to compute the minimum r per bin
-        bins = torch.scatter_reduce(
-            input=input_tensor,
-            dim=0,
-            index=flat_indices,
-            src=spherical_points[:, 0],
-            reduce='amin',
-            include_self=False
-        )
-        bins = bins.view(azimuth_bins, elevation_bins)
-        bins2 = bins.T.unsqueeze(0).unsqueeze(0)  # add batch and channel dims
-        bins2_flipped = torch.flip(bins2, [3])  # flip horizontally to match original orientation
-        bins_downsampled = -torch.nn.functional.max_pool2d(
-            -bins2_flipped,
-            kernel_size=(bins2.shape[2]//16, bins2.shape[3]//20)
-        )
-    except Exception as e:
-        print("Error during scatter_reduce:", e)
-        bins_downsampled = torch.full((1, 1, 16, 20), cfg.LIDAR_MAX_RANGE)
+    input_tensor = torch.full((azimuth_bins * elevation_bins,), 50.0).to(cfg.DEVICE)
+    # try:
+    # Use scatter_reduce to compute the minimum r per bin
+    bins = torch.scatter_reduce(
+        input=input_tensor,
+        dim=0,
+        index=flat_indices,
+        src=spherical_points[:, 0],
+        reduce='amin',
+        include_self=False
+    )
+    # try filtering the bins to remove noise
+    bins = bins.view(azimuth_bins, elevation_bins)
+    bins_filter = bin_filter(bins, kernel_size=cfg.MEDIAN_FILTER_KERNEL_SIZE)
+    bins2 = bins_filter.T.unsqueeze(0).unsqueeze(0)  # add batch and channel dims
+    bins2_flipped = torch.flip(bins2, [3])  # flip horizontally to match original orientation
+    bins_downsampled = -torch.nn.functional.max_pool2d(
+        -bins2_flipped,
+        kernel_size=(bins2.shape[2]//16, bins2.shape[3]//20)
+    )
+    # except Exception as e:
+    #     print("Error during scatter_reduce:", e)
+    #     bins_downsampled = torch.full((1, 1, 16, 20), cfg.LIDAR_MAX_RANGE)
     return bins, bins_downsampled
+
+   
 
 # ============================================================================
 # Parse Pointcloud Optimized
@@ -167,36 +186,6 @@ def parse_pointcloud_optimized(msg):
     points3d_np[:, 0] = np.resize(pc['x'], height * width)
     points3d_np[:, 1] = np.resize(pc['y'], height * width)
     points3d_np[:, 2] = np.resize(pc['z'], height * width)
-    # field_offsets = {field.name: field.offset for field in msg.fields}
-    # x_offset = field_offsets.get('x', None)
-    # y_offset = field_offsets.get('y', None)
-    # z_offset = field_offsets.get('z', None)
-    
-    # if x_offset is None or y_offset is None or z_offset is None:
-    #     raise ValueError("PointCloud2 must have x, y, z fields")
-    
-    # point_step = msg.point_step
-    
-    # # Check if xyz are packed at the beginning (most common case)
-    # if x_offset == 0 and y_offset == 4 and z_offset == 8:
-    #     # Ultra-fast path for standard layout
-    #     num_floats_per_point = point_step // 4
-    #     points3d_np = np.frombuffer(msg.data, dtype=np.float32).reshape(-1, num_floats_per_point)[:, :3].copy()
-    # else:
-    #     print("Non-standard PointCloud2 layout detected, using slower parsing method.")
-    #     # Fast path for non-standard layouts using numpy strides
-    #     num_points = len(msg.data) // point_step
-    #     data = np.frombuffer(msg.data, dtype=np.uint8)
-        
-    #     # Use stride tricks for efficient extraction
-    #     points3d_np = np.zeros((num_points, 3), dtype=np.float32)
-        
-    #     for idx, offset in enumerate([x_offset, y_offset, z_offset]):
-    #         byte_indices = np.arange(num_points)[:, None] * point_step + offset + np.arange(4)
-    #         points3d_np[:, idx] = data[byte_indices].view(np.float32).flatten()
-    # with open("points3d_xyz.csv", "w") as f:
-    #     for point in points3d_np:
-    #         f.write(f"{point[0]},{point[1]},{point[2]}\n")
     return points3d_np
 
 
@@ -365,13 +354,9 @@ class LidarNavigationNode:
         # Transform to body frame velocities
         # clamp action first
         action = np.clip(action, -1.0, 1.0)
-        vel_x = -(action[0] + 1.0) / 2.0 * cfg.SPEED_SCALE  # Forward is negative X
-        # vel_x = action[0] * cfg.SPEED_SCALE
-        vel_y = action[1] * cfg.SPEED_SCALE
-        vel_z = action[2] * cfg.SPEED_SCALE
-        yaw_rate = action[3] * cfg.YAW_RATE_SCALE
-        
-        return np.array([vel_x, vel_y, vel_z, yaw_rate])
+        action[0] = -(action[0] + 1.0)
+        scaled_action = action * cfg.ACTION_SCALE
+        return scaled_action
 
     
     def publish_action(self, action):
@@ -412,10 +397,10 @@ class LidarNavigationNode:
         bins, bins_downsampled = binning_and_downsampling(points3d_np)
         bins_downsampled[bins_downsampled > cfg.LIDAR_MAX_RANGE] = cfg.LIDAR_MAX_RANGE
 
-        # save bins to a csv file
-        bins_np = bins.cpu().numpy()
-        np.savetxt("bins.csv", bins_np.T.squeeze(), delimiter=",")
-        np.savetxt("bins_downsampled.csv", bins_downsampled.cpu().numpy().squeeze(), delimiter=",")
+        # # # save bins to a csv file
+        # bins_np = bins.cpu().numpy()
+        # np.savetxt("bins.csv", bins_np.T.squeeze(), delimiter=",")
+        # np.savetxt("bins_downsampled.csv", bins_downsampled.cpu().numpy().squeeze(), delimiter=",")
 
         self.lidar_tensor[:] = bins_downsampled.flatten().to(self.device)
         self.lidar_tensor[:] = 1 / self.lidar_tensor

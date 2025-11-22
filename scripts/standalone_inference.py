@@ -207,7 +207,7 @@ class NN_Inference_ROS(nn.Module):
         self.init_env_info()
         self.actor_critic = create_actor_critic(self.cfg, self.observation_space, self.action_space)
         self.actor_critic.eval()
-        device = torch.device("cpu")#"cuda:0" if self.cfg.device == "cpu" else "cuda")
+        device = torch.device("cuda:0" if self.cfg.device == "cpu" else "cuda")
         self.actor_critic.model_to_device(device)
         print("Model:\n\n", self.actor_critic)
         # Load policy into model

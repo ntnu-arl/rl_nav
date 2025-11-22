@@ -51,8 +51,7 @@ class Config:
     
     # Action transformation (match your training config)
     # These should match the action_transformation_function in your task config
-    SPEED_SCALE = 1.5
-    YAW_RATE_SCALE = 1.0
+    ACTION_SCALE = np.array([1.0, 1.0, 1.2, 1.0])  # m/s
     
     # Frame IDs
     BODY_FRAME_ID = "rmf/base_link"
@@ -325,6 +324,7 @@ class LidarNavigationNode(Node):
         # Distance to target
         dist_to_target = np.linalg.norm(vec_to_target_vehicle)
         clamped_dist = np.clip(dist_to_target, 0.0, 5.0)
+        # clamped_dist *= 1.5
         
         # Unit vector to target
         unit_vec_to_target = vec_to_target_vehicle / (dist_to_target + 1e-6)
@@ -334,7 +334,8 @@ class LidarNavigationNode(Node):
         self.state_obs_cpu[3] = clamped_dist
         self.state_obs_cpu[4] = self.rpy[0]  # roll
         self.state_obs_cpu[5] = self.rpy[1]  # pitch
-        self.state_obs_cpu[6] = ssa(0.0 - self.rpy[2])  # yaw to target (desired yaw is 0 in vehicle frame)
+        self.state_obs_cpu[6] = ssa(np.pi/2.0 - self.rpy[2])  # yaw to target (desired yaw is 0 in vehicle frame)
+        # print("yaw to target (rad):", self.state_obs_cpu[6].item())
         self.state_obs_cpu[7:10] = torch.from_numpy(self.body_lin_vel).float()
         self.state_obs_cpu[10:13] = torch.from_numpy(self.body_ang_vel).float()
         self.state_obs_cpu[13:17] = torch.from_numpy(self.prev_action).float()
@@ -358,13 +359,10 @@ class LidarNavigationNode(Node):
         # Transform to body frame velocities
         # clamp action first
         action = np.clip(action, -1.0, 1.0)
-        vel_x = -(action[0] + 1.0) / 2.0 * cfg.SPEED_SCALE  # Forward is negative X
-        # vel_x = action[0] * cfg.SPEED_SCALE
-        vel_y = action[1] * cfg.SPEED_SCALE
-        vel_z = action[2] * cfg.SPEED_SCALE
-        yaw_rate = action[3] * cfg.YAW_RATE_SCALE
-        
-        return np.array([vel_x, vel_y, vel_z, yaw_rate])
+        action[0] = -(action[0] + 1.0)
+        scaled_action = action * cfg.ACTION_SCALE
+        # print("Transformed action:", scaled_action)
+        return scaled_action
 
     
     def publish_action(self, action):
@@ -463,7 +461,7 @@ if __name__ == "__main__":
     # args, _ = parser.parse_known_args()
     
     rclpy.init()
-    node = LidarNavigationNode("cpu")
+    node = LidarNavigationNode("cuda:0")
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
