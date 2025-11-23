@@ -56,6 +56,7 @@ class Config:
     
     # Action transformation (match your training config)
     # These should match the action_transformation_function in your task config
+    # ACTION_SCALE = np.array([1.0, 1.0, 0.75, 1.0])  # m/s 
     ACTION_SCALE = np.array([1.0, 1.0, 0.75, 1.0])  # m/s
     
     # Frame IDs
@@ -63,7 +64,7 @@ class Config:
     
     # Control
     USE_MAVROS_STATE = False
-    ACTION_FILTER_ALPHA = 0.3  # EMA filter
+    ACTION_FILTER_ALPHA = np.array([0.3, 0.3, 0.5, 0.3])  # EMA filter
     
     # Device
     DEVICE = "cuda:0"  # Default device, can be overridden by command line arg
@@ -74,6 +75,9 @@ class Config:
 
     MEDIAN_FILTER = True
     MEDIAN_FILTER_KERNEL_SIZE = 7
+
+    # Reset policy at new waypoint
+    RESET_AT_NEW_WP = False
 
 cfg = Config()
 
@@ -283,6 +287,13 @@ class LidarNavigationNode(Node):
             msg.twist.twist.angular.z
         ])
     
+    def reset_policy(self):
+        # Reset on new target
+        self.policy.reset()
+        self.prev_action = np.zeros(cfg.ACTION_DIM)
+        self.action_filter.reset()
+
+    
     def target_callback(self, msg):
         """Update target position"""
         self.target_position = np.array([
@@ -296,21 +307,18 @@ class LidarNavigationNode(Node):
         self.target_yaw = ssa(rot.as_euler('xyz', degrees=False)[2])
 
         # Reset on new target
-        self.policy.reset()
-        self.prev_action = np.zeros(cfg.ACTION_DIM)
-        self.action_filter.reset()
+        if cfg.RESET_AT_NEW_WP:
+            self.reset_policy()
         self.get_logger().info(f"New target: {self.target_position}, yaw: {self.target_yaw:.3f}")
     
     def path_callback(self, msg):
         """Extract first pose from path and update target"""
         if len(msg.poses) > 0:
-            self.target_callback(msg.poses[0])
+            self.target_callback(msg.poses[-1])
     
     def reset_callback(self, msg):
         """Reset network state"""
-        self.policy.reset()
-        self.prev_action = np.zeros(cfg.ACTION_DIM)
-        self.action_filter.reset()
+        self.reset_policy()
         self.get_logger().info("Network reset")
     
     def state_callback(self, msg):
@@ -344,7 +352,7 @@ class LidarNavigationNode(Node):
         
         # Distance to target
         dist_to_target = np.linalg.norm(vec_to_target_vehicle)
-        clamped_dist = np.clip(dist_to_target, 0.0, 5.0)
+        clamped_dist = np.clip(dist_to_target, 0.0, 3.0)
         
         # Unit vector to target
         unit_vec_to_target = vec_to_target_vehicle / (dist_to_target + 1e-6)
