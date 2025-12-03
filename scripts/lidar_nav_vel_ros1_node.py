@@ -8,7 +8,6 @@ from std_msgs.msg import Empty
 from mavros_msgs.msg import State, PositionTarget
 import ros_numpy as rnp
 import time
-import cv2
 import numpy as np
 import torch
 import struct

@@ -10,7 +10,6 @@ from std_msgs.msg import Empty
 from mavros_msgs.msg import State, PositionTarget
 import ros2_numpy as rnp
 import time
-import cv2
 import numpy as np
 import torch
 import struct
@@ -46,9 +45,9 @@ class Config:
     
     # ROS topics
     IMAGE_TOPIC = "/m100/front/depth_image"
-    POINTCLOUD_TOPIC = "/rslidar_points"
-    ODOM_TOPIC = "/msf_core/odometry"
-    ACTION_TOPIC = "/cmd_vel"
+    POINTCLOUD_TOPIC = "/rmf_unipilot/lidar/points"
+    ODOM_TOPIC = "/rmf_unipilot/odom"
+    ACTION_TOPIC = "/rmf_unipilot/cmd/vel"
     TARGET_TOPIC = "/target"
     MAVROS_STATE_TOPIC = "/rmf/mavros/state"
     PATH_TOPIC = "/gbplanner_path"
@@ -56,15 +55,16 @@ class Config:
     
     # Action transformation (match your training config)
     # These should match the action_transformation_function in your task config
-    # ACTION_SCALE = np.array([1.0, 1.0, 0.75, 1.0])  # m/s 
-    ACTION_SCALE = np.array([1.0, 1.0, 0.75, 1.0])  # m/s
+    # ACTION_SCALE = np.array([1.0, 1.0, 0.75, 1.0])  # m/s
+    ACTION_SCALE = np.array([1.0, 1.0, 1.0, 1.0])  # m/s
     
     # Frame IDs
     BODY_FRAME_ID = "mimosa_body"
     
     # Control
     USE_MAVROS_STATE = False
-    ACTION_FILTER_ALPHA = np.array([0.3, 0.3, 0.5, 0.3])  # EMA filter
+    # ACTION_FILTER_ALPHA = np.array([0.3, 0.3, 0.5, 0.3])  # EMA filter (Real)
+    ACTION_FILTER_ALPHA = 0.1  # EMA filter (sim)
     
     # Device
     DEVICE = "cuda:0"  # Default device, can be overridden by command line arg
@@ -187,13 +187,21 @@ def parse_pointcloud_optimized(msg):
     Most optimized version - checks format first, then uses best method
     This is the RECOMMENDED method
     """
-    pc = rnp.numpify(msg) #pc.shape=(720,1280)
-    height = pc.shape[0]
-    width = pc.shape[1]
-    points3d_np = np.zeros((height * width, 3), dtype=np.float32)
-    points3d_np[:, 0] = np.resize(pc['x'], height * width)
-    points3d_np[:, 1] = np.resize(pc['y'], height * width)
-    points3d_np[:, 2] = np.resize(pc['z'], height * width)
+    # pc = rnp.numpify(msg)['xyz'] #pc.shape=(720,1280)
+    # height = pc.shape[0]
+    # width = pc.shape[1]
+    # points3d_np = np.array(pc).reshape(-1, 3)
+    
+    # Bin edges
+    points3d = msg.data
+    # Convert PointCloud2 to numpy array
+    # Assuming point cloud is in XYZ format with float32
+    points3d_np = np.frombuffer(points3d, dtype=np.float32).reshape(-1, 4)[:, :3].copy()  # (N, 3)
+    
+    # points3d_np = np.zeros((height * width, 3), dtype=np.float32)
+    # points3d_np[:, 0] = np.resize(pc['x'], height * width)
+    # points3d_np[:, 1] = np.resize(pc['y'], height * width)
+    # points3d_np[:, 2] = np.resize(pc['z'], height * width)
     return points3d_np
 
 
@@ -214,9 +222,10 @@ class LidarNavigationNode(Node):
         # State variables
         self.position = np.zeros(3)
         self.target_position = np.zeros(3)
-        self.target_position[0] = 5.0
+        self.target_position[0] = 40.0
+        self.target_position[1] = 5.0
         self.target_position[2] = 2.0
-        self.target_yaw = 0.0
+        self.target_yaw = 3.14
         self.rpy = np.zeros(3)
         self.body_lin_vel = np.zeros(3)
         self.body_ang_vel = np.zeros(3)
@@ -352,7 +361,7 @@ class LidarNavigationNode(Node):
         
         # Distance to target
         dist_to_target = np.linalg.norm(vec_to_target_vehicle)
-        clamped_dist = np.clip(dist_to_target, 0.0, 3.0)
+        clamped_dist = np.clip(dist_to_target, 0.0, 7.0)
         
         # Unit vector to target
         unit_vec_to_target = vec_to_target_vehicle / (dist_to_target + 1e-6)
@@ -409,7 +418,7 @@ class LidarNavigationNode(Node):
         twist_msg.angular.z = filtered_vel[3]
 
         # print publising action:
-        print("Publishing action:", twist_msg)
+        # print("Publishing action:", twist_msg)
         
         # Publish
         self.filtered_action_pub.publish(twist_msg)
@@ -464,7 +473,7 @@ class LidarNavigationNode(Node):
         
         # Publish action
         self.publish_action(action)
-        print("PointCloud2 callback processing time: %.3f ms" % ((time.time() - start_time)*1000))
+        # print("PointCloud2 callback processing time: %.3f ms" % ((time.time() - start_time)*1000))
 
 
     def image_callback(self, msg):
