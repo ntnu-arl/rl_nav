@@ -221,11 +221,8 @@ class LidarNavigationNode(Node):
 
         # State variables
         self.position = np.zeros(3)
-        self.target_position = np.zeros(3)
-        self.target_position[0] = 40.0
-        self.target_position[1] = 5.0
-        self.target_position[2] = 2.0
-        self.target_yaw = 3.14
+        self.target_position = None
+        self.target_yaw = None
         self.rpy = np.zeros(3)
         self.body_lin_vel = np.zeros(3)
         self.body_ang_vel = np.zeros(3)
@@ -383,9 +380,7 @@ class LidarNavigationNode(Node):
         self.obs_gpu[cfg.STATE_DIM:] = self.lidar_tensor
         
         return self.obs_gpu
-        
-        return np.array([vel_x, vel_y, vel_z, yaw_rate])
-    
+            
     def transform_action(self, action):
         """
         Transform network output to velocity commands
@@ -402,13 +397,11 @@ class LidarNavigationNode(Node):
     
     def publish_action(self, action):
         """Publish action as Twist message"""
-        # Transform action
-        vel_cmd = self.transform_action(action)
-        self.prev_action = vel_cmd.copy()
+        self.prev_action = action.copy()
         # print("Publishing action:", vel_cmd)
         
         # Apply EMA filter
-        filtered_vel = self.action_filter.update(vel_cmd)
+        filtered_vel = self.action_filter.update(action)
         
         # Create Twist message
         twist_msg = Twist()
@@ -453,6 +446,9 @@ class LidarNavigationNode(Node):
     
     def pointcloud_callback(self, msg):
         """Process incoming point cloud (if using lidar instead of depth image)"""
+        if self.target_position is None:
+            self.publish_action(np.zeros(cfg.ACTION_DIM))
+            return
         start_time = time.time()
         points3d_np = parse_pointcloud_optimized(msg)
         bins, bins_downsampled = binning_and_downsampling(points3d_np)
@@ -470,43 +466,12 @@ class LidarNavigationNode(Node):
         with torch.no_grad():
             # Get action from network (input is GPU tensor, output is numpy on CPU)
             action = torch.clamp(self.policy.get_action(obs_dict), -1.0, 1.0).cpu().numpy().squeeze()
-        
+            action = self.transform_action(action)
+
         # Publish action
         self.publish_action(action)
         # print("PointCloud2 callback processing time: %.3f ms" % ((time.time() - start_time)*1000))
 
-
-    def image_callback(self, msg):
-        """Main control loop triggered by image"""
-        if not self.enable and cfg.USE_MAVROS_STATE:
-            # Publish zero command
-            self.publish_action(np.array([-1.0, 0.0, 0.0, 0.0]))
-            return
-        
-        # Convert ROS Image to numpy
-        if msg.encoding == "32FC1":  # Simulation
-            depth_image = np.array(struct.unpack("f" * msg.height * msg.width, msg.data))
-            depth_image = depth_image.reshape((msg.height, msg.width))
-            depth_image[np.isnan(depth_image)] = cfg.IMAGE_MAX_DEPTH
-        else:  # Real camera
-            depth_image = np.ndarray((msg.height, msg.width), "<H", msg.data, 0)
-            depth_image = depth_image.astype('float32') * 0.001
-            depth_image[np.isnan(depth_image)] = cfg.IMAGE_MAX_DEPTH
-        
-        # Process image on GPU (returns GPU tensor)
-        self.lidar_tensor = self.process_depth_image(depth_image)
-        
-        # Prepare observation on GPU (returns GPU tensor)
-        obs_tensor_gpu = self.prepare_observation()
-        
-        # Get action from network (input is GPU tensor, output is numpy on CPU)
-        action = self.policy.get_action(obs_tensor_gpu, normalize=True)
-        
-        # Store for next iteration
-        self.prev_action = action
-        
-        # Publish action
-        self.publish_action(action)
 
 if __name__ == "__main__":
     import argparse

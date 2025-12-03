@@ -43,34 +43,39 @@ class Config:
     
     # ROS topics
     IMAGE_TOPIC = "/m100/front/depth_image"
-    POINTCLOUD_TOPIC = "/rslidar_points"
-    ODOM_TOPIC = "/msf_core/odometry"
-    ACTION_TOPIC = "/rmf/cmd/vel"
+    POINTCLOUD_TOPIC = "/rmf_unipilot/lidar/points"
+    ODOM_TOPIC = "/rmf_unipilot/odom"
+    ACTION_TOPIC = "/rmf_unipilot/cmd/vel"
     TARGET_TOPIC = "/target"
-    MAVROS_STATE_TOPIC = "/mavros/state"
-    PATH_TOPIC = "/path"
+    MAVROS_STATE_TOPIC = "/rmf/mavros/state"
+    PATH_TOPIC = "/gbplanner_path"
     MAVROS_CMD_TOPIC = "/mavros/setpoint_raw/local"
     
     # Action transformation (match your training config)
     # These should match the action_transformation_function in your task config
-    ACTION_SCALE = np.array([1.0, 1.0, 2.0, 1.0])  # m/s
+    # ACTION_SCALE = np.array([1.0, 1.0, 0.75, 1.0])  # m/s
+    ACTION_SCALE = np.array([1.0, 1.0, 1.0, 1.0])  # m/s
     
     # Frame IDs
     BODY_FRAME_ID = "mimosa_body"
     
     # Control
     USE_MAVROS_STATE = False
-    ACTION_FILTER_ALPHA = 0.1  # EMA filter
+    # ACTION_FILTER_ALPHA = np.array([0.3, 0.3, 0.5, 0.3])  # EMA filter (Real)
+    ACTION_FILTER_ALPHA = 0.1  # EMA filter (sim)
     
     # Device
     DEVICE = "cuda:0"  # Default device, can be overridden by command line arg
 
     # Lidar
     LIDAR_MAX_RANGE = 10.0
-    LIDAR_MIN_RANGE = 0.45
+    LIDAR_MIN_RANGE = 0.4
 
-    MEDIAN_FILTER = False
-    MEDIAN_FILTER_KERNEL_SIZE = 3
+    MEDIAN_FILTER = True
+    MEDIAN_FILTER_KERNEL_SIZE = 7
+
+    # Reset policy at new waypoint
+    RESET_AT_NEW_WP = False
 
 cfg = Config()
 
@@ -206,10 +211,8 @@ class LidarNavigationNode:
 
         # State variables
         self.position = np.zeros(3)
-        self.target_position = np.zeros(3)
-        self.target_position[0] = 5.0
-        self.target_position[2] = 2.0
-        self.target_yaw = 0.0
+        self.target_position = None
+        self.target_yaw = None
         self.rpy = np.zeros(3)
         self.body_lin_vel = np.zeros(3)
         self.body_ang_vel = np.zeros(3)
@@ -273,6 +276,13 @@ class LidarNavigationNode:
             msg.twist.twist.angular.z
         ])
     
+    def reset_policy(self):
+        # Reset on new target
+        self.policy.reset()
+        self.prev_action = np.zeros(cfg.ACTION_DIM)
+        self.action_filter.reset()
+
+    
     def target_callback(self, msg):
         """Update target position"""
         self.target_position = np.array([
@@ -286,21 +296,18 @@ class LidarNavigationNode:
         self.target_yaw = ssa(rot.as_euler('xyz', degrees=False)[2])
 
         # Reset on new target
-        self.policy.reset()
-        self.prev_action = np.zeros(cfg.ACTION_DIM)
-        self.action_filter.reset()
+        if cfg.RESET_AT_NEW_WP:
+            self.reset_policy()
         rospy.loginfo(f"New target: {self.target_position}, yaw: {self.target_yaw:.3f}")
     
     def path_callback(self, msg):
         """Extract first pose from path and update target"""
         if len(msg.poses) > 0:
-            self.target_callback(msg.poses[0])
+            self.target_callback(msg.poses[-1])
     
     def reset_callback(self, msg):
         """Reset network state"""
-        self.policy.reset()
-        self.prev_action = np.zeros(cfg.ACTION_DIM)
-        self.action_filter.reset()
+        self.reset_policy()
         rospy.loginfo("Network reset")
     
     def state_callback(self, msg):
@@ -334,7 +341,7 @@ class LidarNavigationNode:
         
         # Distance to target
         dist_to_target = np.linalg.norm(vec_to_target_vehicle)
-        clamped_dist = np.clip(dist_to_target, 0.0, 5.0)
+        clamped_dist = np.clip(dist_to_target, 0.0, 7.0)
         
         # Unit vector to target
         unit_vec_to_target = vec_to_target_vehicle / (dist_to_target + 1e-6)
@@ -356,9 +363,7 @@ class LidarNavigationNode:
         self.obs_gpu[cfg.STATE_DIM:] = self.lidar_tensor
         
         return self.obs_gpu
-        
-        return np.array([vel_x, vel_y, vel_z, yaw_rate])
-    
+            
     def transform_action(self, action):
         """
         Transform network output to velocity commands
@@ -375,13 +380,11 @@ class LidarNavigationNode:
     
     def publish_action(self, action):
         """Publish action as Twist message"""
-        # Transform action
-        vel_cmd = self.transform_action(action)
-        self.prev_action = vel_cmd.copy()
+        self.prev_action = action.copy()
         # print("Publishing action:", vel_cmd)
         
         # Apply EMA filter
-        filtered_vel = self.action_filter.update(vel_cmd)
+        filtered_vel = self.action_filter.update(action)
         
         # Create Twist message
         twist_msg = Twist()
@@ -391,7 +394,7 @@ class LidarNavigationNode:
         twist_msg.angular.z = filtered_vel[3]
 
         # print publising action:
-        print("Publishing action:", twist_msg)
+        # print("Publishing action:", twist_msg)
         
         # Publish
         self.filtered_action_pub.publish(twist_msg)
@@ -407,7 +410,7 @@ class LidarNavigationNode:
         # Publish PositionTarget
         target_msg = PositionTarget()
         target_msg.header.stamp = rospy.Time.now()
-        target_msg.header.frame_id = "mimosa_body"
+        target_msg.header.frame_id = cfg.BODY_FRAME_ID
         target_msg.coordinate_frame = PositionTarget.FRAME_BODY_NED
         target_msg.type_mask = (
             PositionTarget.IGNORE_PX |
@@ -426,15 +429,13 @@ class LidarNavigationNode:
     
     def pointcloud_callback(self, msg):
         """Process incoming point cloud (if using lidar instead of depth image)"""
+        if self.target_position is None:
+            self.publish_action(np.zeros(cfg.ACTION_DIM))
+            return
         start_time = time.time()
         points3d_np = parse_pointcloud_optimized(msg)
         bins, bins_downsampled = binning_and_downsampling(points3d_np)
         bins_downsampled[bins_downsampled > cfg.LIDAR_MAX_RANGE] = cfg.LIDAR_MAX_RANGE
-
-        # # # save bins to a csv file
-        # bins_np = bins.cpu().numpy()
-        # np.savetxt("bins.csv", bins_np.T.squeeze(), delimiter=",")
-        # np.savetxt("bins_downsampled.csv", bins_downsampled.cpu().numpy().squeeze(), delimiter=",")
 
         self.lidar_tensor[:] = bins_downsampled.flatten().to(self.device)
         self.lidar_tensor[:] = 1 / self.lidar_tensor
@@ -448,43 +449,11 @@ class LidarNavigationNode:
         with torch.no_grad():
             # Get action from network (input is GPU tensor, output is numpy on CPU)
             action = torch.clamp(self.policy.get_action(obs_dict), -1.0, 1.0).cpu().numpy().squeeze()
-        
+            action = self.transform_action(action)
         # Publish action
         self.publish_action(action)
-        print("PointCloud2 callback processing time: %.3f ms" % ((time.time() - start_time)*1000))
+        # print("PointCloud2 callback processing time: %.3f ms" % ((time.time() - start_time)*1000))
 
-
-    def image_callback(self, msg):
-        """Main control loop triggered by image"""
-        if not self.enable and cfg.USE_MAVROS_STATE:
-            # Publish zero command
-            self.publish_action(np.array([-1.0, 0.0, 0.0, 0.0]))
-            return
-        
-        # Convert ROS Image to numpy
-        if msg.encoding == "32FC1":  # Simulation
-            depth_image = np.array(struct.unpack("f" * msg.height * msg.width, msg.data))
-            depth_image = depth_image.reshape((msg.height, msg.width))
-            depth_image[np.isnan(depth_image)] = cfg.IMAGE_MAX_DEPTH
-        else:  # Real camera
-            depth_image = np.ndarray((msg.height, msg.width), "<H", msg.data, 0)
-            depth_image = depth_image.astype('float32') * 0.001
-            depth_image[np.isnan(depth_image)] = cfg.IMAGE_MAX_DEPTH
-        
-        # Process image on GPU (returns GPU tensor)
-        self.lidar_tensor = self.process_depth_image(depth_image)
-        
-        # Prepare observation on GPU (returns GPU tensor)
-        obs_tensor_gpu = self.prepare_observation()
-        
-        # Get action from network (input is GPU tensor, output is numpy on CPU)
-        action = self.policy.get_action(obs_tensor_gpu, normalize=True)
-        
-        # Store for next iteration
-        self.prev_action = action
-        
-        # Publish action
-        self.publish_action(action)
 
 if __name__ == "__main__":
     import argparse
