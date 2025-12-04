@@ -255,7 +255,6 @@ class LidarNavigationNode(Node):
         self.local_setpoint_pub = self.create_publisher(PositionTarget, cfg.MAVROS_CMD_TOPIC, reliable_qos)
         
         # Subscribers
-        self.image_sub = self.create_subscription(Image, cfg.IMAGE_TOPIC, self.image_callback, 1)
         self.pointcloud_sub = self.create_subscription(PointCloud2, cfg.POINTCLOUD_TOPIC, self.pointcloud_callback, 1)
         self.odom_sub = self.create_subscription(Odometry, cfg.ODOM_TOPIC, self.odom_callback, 1)
         self.target_sub = self.create_subscription(PoseStamped, cfg.TARGET_TOPIC, self.target_callback, 1)
@@ -318,6 +317,7 @@ class LidarNavigationNode(Node):
         self.get_logger().info(f"New target: {self.target_position}, yaw: {self.target_yaw:.3f}")
     
     def path_callback(self, msg):
+        print("new path received with %d poses" % len(msg.poses))
         """Extract first pose from path and update target"""
         if len(msg.poses) > 0:
             self.target_callback(msg.poses[-1])
