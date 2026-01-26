@@ -56,15 +56,15 @@ class Config:
     
     # Action transformation (match your training config)
     # These should match the action_transformation_function in your task config
-    # ACTION_SCALE = np.array([1.0, 1.0, 0.75, 1.0])  # m/s 
-    ACTION_SCALE = np.array([1.0, 1.0, 0.75, 1.0])  # m/s
+    ACTION_SCALE = np.array([1.0, 1.0, 0.5, 1.0])  # m/s 
+    # ACTION_SCALE = np.array([0.5, 0.5, 0.25, 0.75])  # m/s
     
     # Frame IDs
     BODY_FRAME_ID = "mimosa_body"
     
     # Control
     USE_MAVROS_STATE = False
-    ACTION_FILTER_ALPHA = np.array([0.3, 0.3, 0.5, 0.3])  # EMA filter
+    ACTION_FILTER_ALPHA = np.array([0.3, 0.3, 0.65, 0.3])  # EMA filter
     
     # Device
     DEVICE = "cuda:0"  # Default device, can be overridden by command line arg
@@ -352,7 +352,8 @@ class LidarNavigationNode(Node):
         
         # Distance to target
         dist_to_target = np.linalg.norm(vec_to_target_vehicle)
-        clamped_dist = np.clip(dist_to_target, 0.0, 3.0)
+        # clamped_dist = np.clip(dist_to_target, 0.0, 3.0)
+        clamped_dist = np.clip(dist_to_target, 0.0, 7.0)
         
         # Unit vector to target
         unit_vec_to_target = vec_to_target_vehicle / (dist_to_target + 1e-6)
