@@ -47,7 +47,7 @@ class Config:
     IMAGE_TOPIC = "/m100/front/depth_image"
     POINTCLOUD_TOPIC = "/rmf_unipilot/lidar/points"
     ODOM_TOPIC = "/rmf_unipilot/odom"
-    ACTION_TOPIC = "/rmf_unipilot/cmd/vel"
+    ACTION_TOPIC = "/rmf_unipilot/cmd/acc"
     TARGET_TOPIC = "/target"
     MAVROS_STATE_TOPIC = "/rmf/mavros/state"
     PATH_TOPIC = "/gbplanner_path"
@@ -390,7 +390,8 @@ class LidarNavigationNode(Node):
         # Transform to body frame velocities
         # clamp action first
         action = np.clip(action, -1.0, 1.0)
-        action[0] = -(action[0] + 1.0)
+        action[0:3] = 2.0 * action[0:3]  # Scale linear velocities
+        action[3] = np.pi/3.0 * action[3]  # Scale angular velocity
         scaled_action = action * cfg.ACTION_SCALE
         return scaled_action
 
@@ -433,14 +434,14 @@ class LidarNavigationNode(Node):
             PositionTarget.IGNORE_PX |
             PositionTarget.IGNORE_PY |
             PositionTarget.IGNORE_PZ |
-            PositionTarget.IGNORE_AFX |
-            PositionTarget.IGNORE_AFY |
-            PositionTarget.IGNORE_AFZ |
+            PositionTarget.IGNORE_VX |
+            PositionTarget.IGNORE_VY |
+            PositionTarget.IGNORE_VZ |
             PositionTarget.IGNORE_YAW
         )
-        target_msg.velocity.x = filtered_vel[0]
-        target_msg.velocity.y = filtered_vel[1]
-        target_msg.velocity.z = filtered_vel[2]
+        target_msg.acceleration_or_force.x = filtered_vel[0]
+        target_msg.acceleration_or_force.y = filtered_vel[1]
+        target_msg.acceleration_or_force.z = filtered_vel[2]
         target_msg.yaw_rate = filtered_vel[3]
         self.local_setpoint_pub.publish(target_msg)
     

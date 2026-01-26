@@ -1,0 +1,99 @@
+diff --git a/aerial_gym/config/task_config/lidar_navigation_task_config.py b/aerial_gym/config/task_config/lidar_navigation_task_config.py
+index d4af3e8..7be3ba9 100644
+--- a/aerial_gym/config/task_config/lidar_navigation_task_config.py
++++ b/aerial_gym/config/task_config/lidar_navigation_task_config.py
+@@ -8,7 +8,7 @@ class task_config:
+     env_name = "env_with_obstacles"
+     robot_name = "magpie"
+     # controller_name = "lmf2_acceleration_control"
+-    controller_name = "magpie_velocity_control"
++    controller_name = "magpie_acceleration_control"
+     args = {}
+     num_envs = 512
+     use_warp = True
+@@ -82,20 +82,6 @@ class task_config:
+ 
+ 
+ 
+-    def action_transformation_function(action):
+-        clamped_action = torch.clamp(action, -1.0, 1.0)
+-        max_yawrate = torch.pi / 3  # [rad/s]
+-
+-        processed_action = torch.zeros(
+-            (clamped_action.shape[0], 4), device=task_config.device, requires_grad=False
+-        )
+-
+-        processed_action[:, 0] = -(clamped_action[:, 0]+1.0)
+-        processed_action[:, 1] = clamped_action[:, 1]
+-        processed_action[:, 2] = clamped_action[:, 2]
+-        processed_action[:, 3] = clamped_action[:, 3] * max_yawrate
+-        return processed_action
+-
+     # def action_transformation_function(action):
+     #     clamped_action = torch.clamp(action, -1.0, 1.0)
+     #     max_yawrate = torch.pi / 3  # [rad/s]
+@@ -104,8 +90,20 @@ class task_config:
+     #         (clamped_action.shape[0], 4), device=task_config.device, requires_grad=False
+     #     )
+ 
+-    #     processed_action[:, 0:3] = 2 * (clamped_action[:, 0:3])
+-    #     # processed_action[:, 1] = clamped_action[:, 1]
+-    #     # processed_action[:, 2] = clamped_action[:, 2]
++    #     processed_action[:, 0] = -(clamped_action[:, 0]+1.0)
++    #     processed_action[:, 1] = clamped_action[:, 1]
++    #     processed_action[:, 2] = clamped_action[:, 2]
+     #     processed_action[:, 3] = clamped_action[:, 3] * max_yawrate
+     #     return processed_action
++
++    def action_transformation_function(action):
++        clamped_action = torch.clamp(action, -1.0, 1.0)
++        max_yawrate = torch.pi / 3  # [rad/s]
++
++        processed_action = torch.zeros(
++            (clamped_action.shape[0], 4), device=task_config.device, requires_grad=False
++        )
++
++        processed_action[:, 0:3] = 2 * (clamped_action[:, 0:3])
++        processed_action[:, 3] = clamped_action[:, 3] * max_yawrate
++        return processed_action
+diff --git a/aerial_gym/task/lidar_navigation_task/lidar_navigation_task.py b/aerial_gym/task/lidar_navigation_task/lidar_navigation_task.py
+index 18bbd6c..868a058 100644
+--- a/aerial_gym/task/lidar_navigation_task/lidar_navigation_task.py
++++ b/aerial_gym/task/lidar_navigation_task/lidar_navigation_task.py
+@@ -305,6 +305,36 @@ class LiDARNavigationTask(BaseTask):
+         ).to(self.device)
+         ds_lidar_data[:, 10:][low_range_points_mask == 1] = random_low_ranges[low_range_points_mask == 1]
+         return ds_lidar_data
++    
++
++    # # For radar navigation
++
++    # def add_noise_to_downsampled_lidar_data(self, ds_lidar_data):
++    #     # random noise to 3% pixels
++    #     noise_mask = torch.bernoulli(
++    #         0.03 * torch.ones_like(ds_lidar_data)).to(self.device)
++    #     ds_lidar_data[noise_mask == 1] += torch_rand_float_tensor(
++    #         0.2 * torch.ones_like(noise_mask[noise_mask == 1]),
++    #         10.0 * torch.ones_like(noise_mask[noise_mask == 1])
++    #     ).to(self.device)
++
++    #     # bernoulli sampling to have 60 - 90 % points max range
++    #     bernoulli_probability = torch.rand(1, device=self.device)[0] * 0.2 + 0.6
++    #     max_range_points_mask = torch.bernoulli(
++    #         bernoulli_probability*torch.ones_like(ds_lidar_data)).to(self.device)
++    #     ds_lidar_data[max_range_points_mask == 1] = -1 #10.0
++
++    #     # 1-2% points in the bottom half of the image to be a low value between 0.2 to 1 meter
++    #     # 5% pixels below 10: index of ds_lidar_data should have random range between 0.2 to 1.0 metres
++
++    #     # low_range_points_mask = torch.bernoulli(
++    #     #     0.02 * torch.ones_like(ds_lidar_data[:, 10:])).to(self.device)
++    #     # random_low_ranges = torch_rand_float_tensor(
++    #     #     0.2 * torch.ones_like(low_range_points_mask),
++    #     #     1.0 * torch.ones_like(low_range_points_mask)
++    #     # ).to(self.device)
++    #     # ds_lidar_data[:, 10:][low_range_points_mask == 1] = random_low_ranges[low_range_points_mask == 1]
++    #     return ds_lidar_data
+ 
+ 
+     def process_image_observation(self):
