@@ -6,8 +6,8 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPo
 from sensor_msgs.msg import Image, PointCloud2
 from geometry_msgs.msg import Twist, PoseStamped, TwistStamped
 from nav_msgs.msg import Odometry, Path
-from std_msgs.msg import Empty
 from mavros_msgs.msg import State, PositionTarget
+from std_msgs.msg import Empty, Float32MultiArray
 import ros2_numpy as rnp
 import time
 import cv2
@@ -259,6 +259,10 @@ class LidarNavigationNode(Node):
         if cfg.USE_MAVROS_STATE:
             self.state_sub = self.create_subscription(State, cfg.MAVROS_STATE_TOPIC, self.state_callback, 1)
         
+        # New subscription for pre-processed lidar
+        self.processed_lidar_sub = self.create_subscription(
+            Float32MultiArray, "/processed_lidar", self.processed_lidar_callback, 1)
+        
         self.get_logger().info("Lidar Navigation Node initialized")
     
     def odom_callback(self, msg):
@@ -468,6 +472,40 @@ class LidarNavigationNode(Node):
         self.publish_action(action)
         print("PointCloud2 callback processing time: %.3f ms" % ((time.time() - start_time)*1000))
 
+
+    def processed_lidar_callback(self, msg):
+        """Consume pre-processed lidar from C++ node"""
+        start_time = time.time()
+        
+        # C++ node publishes row-major Float32MultiArray
+        # Dimension: [rows, cols] = [16, 20]
+        # Data is either min_range or inverted depth (1/range)
+        
+        # Convert data to tensor and move to device
+        lidar_data = torch.tensor(msg.data, device=self.device, dtype=torch.float32)
+        
+        # If the C++ node already inverted depth, we don't need to do it here
+        # The Python node expects lidars to be inverted (1/distance)
+        # Looking at the C++ code, it supports invert_depth_ parameter
+        # If not inverted, we do: self.lidar_tensor[:] = 1.0 / (lidar_data + 1e-6)
+        # Assuming for now it's matching the expected format
+        self.lidar_tensor[:] = lidar_data.flatten()
+        
+        # Prepare observation on GPU
+        obs_tensor_gpu = self.prepare_observation()
+        obs_dict = {
+            "observations": obs_tensor_gpu.unsqueeze(0)
+        }
+        
+        with torch.no_grad():
+            # Get action (input GPU, output CPU)
+            action = torch.clamp(self.policy.get_action(obs_dict), -1.0, 1.0).cpu().numpy().squeeze()
+        
+        # Publish action
+        self.publish_action(action)
+        
+        if (time.time() - start_time) * 1000 > 50: # Log only if slow
+             self.get_logger().info("Processed Lidar callback time: %.3f ms" % ((time.time() - start_time)*1000))
 
     def image_callback(self, msg):
         """Main control loop triggered by image"""
