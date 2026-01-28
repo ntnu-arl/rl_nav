@@ -56,7 +56,7 @@ class Config:
     
     # Action transformation (match your training config)
     # These should match the action_transformation_function in your task config
-    ACTION_SCALE = np.array([1.0, 1.0, 0.5, 1.0])  # m/s 
+    ACTION_SCALE = np.array([0.8, 0.8, 0.6, 0.8])  # m/s 
     # ACTION_SCALE = np.array([0.5, 0.5, 0.25, 0.75])  # m/s
     
     # Frame IDs
@@ -64,7 +64,8 @@ class Config:
     
     # Control
     USE_MAVROS_STATE = False
-    ACTION_FILTER_ALPHA = np.array([0.3, 0.3, 0.65, 0.3])  # EMA filter
+    # ACTION_FILTER_ALPHA = np.array([0.3, 0.3, 0.65, 0.3])  # EMA filter
+    ACTION_FILTER_ALPHA = np.array([0.3, 0.3, 0.5, 0.3])  # EMA filter
     
     # Device
     DEVICE = "cuda:0"  # Default device, can be overridden by command line arg
@@ -492,6 +493,8 @@ class LidarNavigationNode(Node):
         self.lidar_tensor[:] = lidar_data.flatten()
         
         # Prepare observation on GPU
+        inference_time_start = time.time()
+        # Prepare observation on GPU (returns GPU tensor)
         obs_tensor_gpu = self.prepare_observation()
         obs_dict = {
             "observations": obs_tensor_gpu.unsqueeze(0)
@@ -500,7 +503,7 @@ class LidarNavigationNode(Node):
         with torch.no_grad():
             # Get action (input GPU, output CPU)
             action = torch.clamp(self.policy.get_action(obs_dict), -1.0, 1.0).cpu().numpy().squeeze()
-        
+        print("Inference time: ", time.time() - inference_time_start)
         # Publish action
         self.publish_action(action)
         
