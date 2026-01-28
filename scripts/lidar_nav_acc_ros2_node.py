@@ -250,7 +250,7 @@ class LidarNavigationNode(Node):
         
         # Subscribers
         self.image_sub = self.create_subscription(Image, cfg.IMAGE_TOPIC, self.image_callback, 1)
-        self.pointcloud_sub = self.create_subscription(PointCloud2, cfg.POINTCLOUD_TOPIC, self.pointcloud_callback, 1)
+        # self.pointcloud_sub = self.create_subscription(PointCloud2, cfg.POINTCLOUD_TOPIC, self.pointcloud_callback, 1)
         self.odom_sub = self.create_subscription(Odometry, cfg.ODOM_TOPIC, self.odom_callback, 1)
         self.target_sub = self.create_subscription(PoseStamped, cfg.TARGET_TOPIC, self.target_callback, 1)
         self.path_sub = self.create_subscription(Path, cfg.PATH_TOPIC, self.path_callback, 1)
@@ -448,29 +448,29 @@ class LidarNavigationNode(Node):
         target_msg.yaw_rate = filtered_vel[3]
         self.local_setpoint_pub.publish(target_msg)
     
-    def pointcloud_callback(self, msg):
-        """Process incoming point cloud (if using lidar instead of depth image)"""
-        start_time = time.time()
-        points3d_np = parse_pointcloud_optimized(msg)
-        bins, bins_downsampled = binning_and_downsampling(points3d_np)
-        bins_downsampled[bins_downsampled > cfg.LIDAR_MAX_RANGE] = cfg.LIDAR_MAX_RANGE
+    # def pointcloud_callback(self, msg):
+    #     """Process incoming point cloud (if using lidar instead of depth image)"""
+    #     start_time = time.time()
+    #     points3d_np = parse_pointcloud_optimized(msg)
+    #     bins, bins_downsampled = binning_and_downsampling(points3d_np)
+    #     bins_downsampled[bins_downsampled > cfg.LIDAR_MAX_RANGE] = cfg.LIDAR_MAX_RANGE
 
-        self.lidar_tensor[:] = bins_downsampled.flatten().to(self.device)
-        self.lidar_tensor[:] = 1 / self.lidar_tensor
+    #     self.lidar_tensor[:] = bins_downsampled.flatten().to(self.device)
+    #     self.lidar_tensor[:] = 1 / self.lidar_tensor
 
 
-        # Prepare observation on GPU (returns GPU tensor)
-        obs_tensor_gpu = self.prepare_observation()
-        obs_dict = {
-            "observations": obs_tensor_gpu.unsqueeze(0)
-        }
-        with torch.no_grad():
-            # Get action from network (input is GPU tensor, output is numpy on CPU)
-            action = torch.clamp(self.policy.get_action(obs_dict), -1.0, 1.0).cpu().numpy().squeeze()
+    #     # Prepare observation on GPU (returns GPU tensor)
+    #     obs_tensor_gpu = self.prepare_observation()
+    #     obs_dict = {
+    #         "observations": obs_tensor_gpu.unsqueeze(0)
+    #     }
+    #     with torch.no_grad():
+    #         # Get action from network (input is GPU tensor, output is numpy on CPU)
+    #         action = torch.clamp(self.policy.get_action(obs_dict), -1.0, 1.0).cpu().numpy().squeeze()
         
-        # Publish action
-        self.publish_action(action)
-        print("PointCloud2 callback processing time: %.3f ms" % ((time.time() - start_time)*1000))
+    #     # Publish action
+    #     self.publish_action(action)
+    #     print("PointCloud2 callback processing time: %.3f ms" % ((time.time() - start_time)*1000))
 
 
     def processed_lidar_callback(self, msg):
