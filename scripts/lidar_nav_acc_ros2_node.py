@@ -52,20 +52,25 @@ class Config:
     TARGET_TOPIC = "/target"
     MAVROS_STATE_TOPIC = "/rmf/mavros/state"
     PATH_TOPIC = "/gbplanner_path"
-    MAVROS_CMD_TOPIC = "/mavros/setpoint_raw/local"
+    # MAVROS_CMD_TOPIC = "/mavros/setpoint_raw/local"
+    MAVROS_CMD_TOPIC = "/fake_topic"
+    PROCESSED_LIDAR_TOPIC = "/processed_lidar_up"
     
     # Action transformation (match your training config)
     # These should match the action_transformation_function in your task config
-    ACTION_SCALE = np.array([0.8, 0.8, 0.6, 0.8])  # m/s 
-    # ACTION_SCALE = np.array([0.5, 0.5, 0.25, 0.75])  # m/s
+    # ACTION_SCALE = np.array([0.75, 0.5, 0.6, 0.6])  # m/s  8Jan2026
+    ACTION_SCALE = np.array([0.85, 0.5, 0.8, 0.6])  # m/s  26Jan2026
+
+    OFFSET = 1.0
     
     # Frame IDs
     BODY_FRAME_ID = "mimosa_body"
     
     # Control
     USE_MAVROS_STATE = False
-    # ACTION_FILTER_ALPHA = np.array([0.3, 0.3, 0.65, 0.3])  # EMA filter
-    ACTION_FILTER_ALPHA = np.array([0.3, 0.3, 0.5, 0.3])  # EMA filter
+    # ACTION_FILTER_ALPHA = np.array([0.15, 0.4, 0.2, 0.5])  # EMA filter 8Jan2026
+    ACTION_FILTER_ALPHA = np.array([0.15, 0.2, 0.2, 0.3])  # EMA filter 26Jan2026
+
     
     # Device
     DEVICE = "cuda:0"  # Default device, can be overridden by command line arg
@@ -262,7 +267,7 @@ class LidarNavigationNode(Node):
         
         # New subscription for pre-processed lidar
         self.processed_lidar_sub = self.create_subscription(
-            Float32MultiArray, "/processed_lidar", self.processed_lidar_callback, 1)
+            Float32MultiArray, cfg.PROCESSED_LIDAR_TOPIC, self.processed_lidar_callback, 1)
         
         self.get_logger().info("Lidar Navigation Node initialized")
     
@@ -356,7 +361,7 @@ class LidarNavigationNode(Node):
         vec_to_target_vehicle = vehicle_rot.inv().apply(vec_to_target)
         
         # Distance to target
-        dist_to_target = np.linalg.norm(vec_to_target_vehicle)
+        dist_to_target = np.linalg.norm(vec_to_target_vehicle) + cfg.OFFSET
         # clamped_dist = np.clip(dist_to_target, 0.0, 3.0)
         clamped_dist = np.clip(dist_to_target, 0.0, 7.0)
         
@@ -416,7 +421,7 @@ class LidarNavigationNode(Node):
         twist_msg.angular.z = filtered_vel[3]
 
         # print publising action:
-        print("Publishing action:", twist_msg)
+        # print("Publishing action:", twist_msg)
         
         # Publish
         self.filtered_action_pub.publish(twist_msg)
@@ -503,7 +508,7 @@ class LidarNavigationNode(Node):
         with torch.no_grad():
             # Get action (input GPU, output CPU)
             action = torch.clamp(self.policy.get_action(obs_dict), -1.0, 1.0).cpu().numpy().squeeze()
-        print("Inference time: ", time.time() - inference_time_start)
+        # print("Inference time: ", time.time() - inference_time_start)
         # Publish action
         self.publish_action(action)
         
