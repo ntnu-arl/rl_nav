@@ -1,0 +1,596 @@
+diff --git a/aerial_gym/config/controller_config/magpie_controller_config.py b/aerial_gym/config/controller_config/magpie_controller_config.py
+index ab37812..a644b51 100644
+--- a/aerial_gym/config/controller_config/magpie_controller_config.py
++++ b/aerial_gym/config/controller_config/magpie_controller_config.py
+@@ -29,17 +29,15 @@ class control:
+     K_vel_tensor_min = [2.7, 2.7, 2.3]
+ 
+     K_rot_tensor_max = [
+-        1.85,
+-        1.85,
+-        0.4,
++        10.9453125, 10.9453125, 0.32499998807907104
+     ]  # used for lee_position_control, lee_velocity_control and lee_attitude_control
+-    K_rot_tensor_min = [1.6, 1.6, 0.25]
++    K_rot_tensor_min = [10.9453125, 10.9453125, 0.32499998807907104]
++
++    
+ 
+     K_angvel_tensor_max = [
+-        0.5,
+-        0.5,
+-        0.09,
++        0.7910937666893005, 0.7910937666893005, 0.038818358927965164
+     ]  # used for lee_position_control, lee_velocity_control and lee_attitude_control
+-    K_angvel_tensor_min = [0.4, 0.4, 0.075]
++    K_angvel_tensor_min = [0.7910937666893005, 0.7910937666893005, 0.038818358927965164]
+ 
+-    randomize_params = True
++    randomize_params = False
+diff --git a/aerial_gym/config/env_config/env_config_2ms.py b/aerial_gym/config/env_config/env_config_2ms.py
+index 982bbc4..3e34674 100644
+--- a/aerial_gym/config/env_config/env_config_2ms.py
++++ b/aerial_gym/config/env_config/env_config_2ms.py
+@@ -9,9 +9,9 @@ class EnvCfg2Ms:
+         # and some of them may be used to control various entities in the environment
+         # e.g. motion of obstacles, etc.
+         env_spacing = 1.0  # not used with heightfields/trimeshes
+-        num_physics_steps_per_env_step_mean = 5  # number of steps between camera renders mean
++        num_physics_steps_per_env_step_mean = 1  # number of steps between camera renders mean
+         num_physics_steps_per_env_step_std = 0  # number of steps between camera renders std
+-        render_viewer_every_n_steps = 2  # render the viewer every n steps
++        render_viewer_every_n_steps = 20  # render the viewer every n steps
+         collision_force_threshold = 0.010  # collision force threshold
+         manual_camera_trigger = False  # trigger camera captures manually
+         reset_on_collision = (
+diff --git a/aerial_gym/config/robot_config/magpie_config.py b/aerial_gym/config/robot_config/magpie_config.py
+index 91f3dbb..37aedc9 100644
+--- a/aerial_gym/config/robot_config/magpie_config.py
++++ b/aerial_gym/config/robot_config/magpie_config.py
+@@ -58,7 +58,7 @@ class MagpieCfg:
+         imu_config = BaseImuConfig
+ 
+     class disturbance:
+-        enable_disturbance = True
++        enable_disturbance = False
+         prob_apply_disturbance = 0.05
+         max_force_and_torque_disturbance = [4.75, 4.75, 4.75, 0.03, 0.03, 0.03]
+ 
+@@ -165,12 +165,12 @@ class MagpieCfg:
+             use_rps = True
+             motor_thrust_constant_min = 0.00000926312
+             motor_thrust_constant_max = 0.00001826312
+-            motor_time_constant_increasing_min = 0.05
+-            motor_time_constant_increasing_max = 0.08
++            motor_time_constant_increasing_min = 0.01
++            motor_time_constant_increasing_max = 0.02
+             motor_time_constant_decreasing_min = 0.005
+             motor_time_constant_decreasing_max = 0.005
+-            max_thrust = 10.0
++            max_thrust = 20.0
+             min_thrust = 0.1
+-            max_thrust_rate = 100000.0
+-            thrust_to_torque_ratio = 0.07
++            max_thrust_rate = 1000000.0
++            thrust_to_torque_ratio = 0.1
+             use_discrete_approximation = True  # use discrete approximation for motor dynamics
+diff --git a/aerial_gym/config/task_config/lidar_navigation_task_config.py b/aerial_gym/config/task_config/lidar_navigation_task_config.py
+index d4af3e8..4de16ca 100644
+--- a/aerial_gym/config/task_config/lidar_navigation_task_config.py
++++ b/aerial_gym/config/task_config/lidar_navigation_task_config.py
+@@ -8,7 +8,7 @@ class task_config:
+     env_name = "env_with_obstacles"
+     robot_name = "magpie"
+     # controller_name = "lmf2_acceleration_control"
+-    controller_name = "magpie_velocity_control"
++    controller_name = "magpie_acceleration_control"
+     args = {}
+     num_envs = 512
+     use_warp = True
+@@ -33,13 +33,13 @@ class task_config:
+         "very_close_to_goal_reward_magnitude": 5.0,
+         "very_close_to_goal_reward_exponent": 8.0,
+         "vel_direction_component_reward_magnitude": 1.0,
+-        "x_action_diff_penalty_magnitude": 0.1,
++        "x_action_diff_penalty_magnitude": 0.3,
+         "x_action_diff_penalty_exponent": 5.0,
+-        "y_action_diff_penalty_magnitude": 0.1,
++        "y_action_diff_penalty_magnitude": 0.3,
+         "y_action_diff_penalty_exponent": 5.0,
+-        "z_action_diff_penalty_magnitude": 0.1,
++        "z_action_diff_penalty_magnitude": 0.3,
+         "z_action_diff_penalty_exponent": 5.0,
+-        "yawrate_action_diff_penalty_magnitude": 0.1,
++        "yawrate_action_diff_penalty_magnitude": 0.3,
+         "yawrate_action_diff_penalty_exponent": 5.0,
+         "x_absolute_action_penalty_magnitude": 0.1,
+         "x_absolute_action_penalty_exponent": 0.3,
+@@ -82,20 +82,6 @@ class task_config:
+ 
+ 
+ 
+-    def action_transformation_function(action):
+-        clamped_action = torch.clamp(action, -1.0, 1.0)
+-        max_yawrate = torch.pi / 3  # [rad/s]
+-
+-        processed_action = torch.zeros(
+-            (clamped_action.shape[0], 4), device=task_config.device, requires_grad=False
+-        )
+-
+-        processed_action[:, 0] = -(clamped_action[:, 0]+1.0)
+-        processed_action[:, 1] = clamped_action[:, 1]
+-        processed_action[:, 2] = clamped_action[:, 2]
+-        processed_action[:, 3] = clamped_action[:, 3] * max_yawrate
+-        return processed_action
+-
+     # def action_transformation_function(action):
+     #     clamped_action = torch.clamp(action, -1.0, 1.0)
+     #     max_yawrate = torch.pi / 3  # [rad/s]
+@@ -104,8 +90,20 @@ class task_config:
+     #         (clamped_action.shape[0], 4), device=task_config.device, requires_grad=False
+     #     )
+ 
+-    #     processed_action[:, 0:3] = 2 * (clamped_action[:, 0:3])
+-    #     # processed_action[:, 1] = clamped_action[:, 1]
+-    #     # processed_action[:, 2] = clamped_action[:, 2]
++    #     processed_action[:, 0] = -(clamped_action[:, 0]+1.0)
++    #     processed_action[:, 1] = clamped_action[:, 1]
++    #     processed_action[:, 2] = clamped_action[:, 2]
+     #     processed_action[:, 3] = clamped_action[:, 3] * max_yawrate
+     #     return processed_action
++
++    def action_transformation_function(action):
++        clamped_action = torch.clamp(action, -1.0, 1.0)
++        max_yawrate = torch.pi / 3  # [rad/s]
++
++        processed_action = torch.zeros(
++            (clamped_action.shape[0], 4), device=task_config.device, requires_grad=False
++        )
++
++        processed_action[:, 0:3] = 2 * (clamped_action[:, 0:3])
++        processed_action[:, 3] = clamped_action[:, 3] * max_yawrate
++        return processed_action
+diff --git a/aerial_gym/control/controllers/base_lee_controller.py b/aerial_gym/control/controllers/base_lee_controller.py
+index 191166d..bdc9807 100644
+--- a/aerial_gym/control/controllers/base_lee_controller.py
++++ b/aerial_gym/control/controllers/base_lee_controller.py
+@@ -75,6 +75,15 @@ class BaseLeeController(BaseController):
+         # buffer tensor to be used by torch.jit functions for various purposes
+         self.buffer_tensor = torch.zeros((self.num_envs, 3, 3), device=self.device)
+ 
++    def set_controller_gains(self, K_pos, K_vel, K_rot, K_angvel):
++        """
++        Set the current controller gains.
++        """
++        self.K_pos_tensor_current[:] = K_pos
++        self.K_linvel_tensor_current[:] = K_vel
++        self.K_rot_tensor_current[:] = K_rot
++        self.K_angvel_tensor_current[:] = K_angvel
++
+     def __call__(self, *args, **kwargs):
+         return self.update(*args, **kwargs)
+ 
+@@ -107,6 +116,12 @@ class BaseLeeController(BaseController):
+         self.K_angvel_tensor_current[env_ids] = torch_rand_float_tensor(
+             self.K_angvel_tensor_min[env_ids], self.K_angvel_tensor_max[env_ids]
+         )
++    
++    def set_controller_gains(self, K_pos, K_vel, K_rot, K_angvel):
++        self.K_pos_tensor_current[:] = K_pos
++        self.K_linvel_tensor_current[:] = K_vel
++        self.K_rot_tensor_current[:] = K_rot
++        self.K_angvel_tensor_current[:] = K_angvel
+ 
+     def compute_acceleration(self, setpoint_position, setpoint_velocity):
+         position_error_world_frame = setpoint_position - self.robot_position
+diff --git a/aerial_gym/control/controllers/rates_control.py b/aerial_gym/control/controllers/rates_control.py
+index 6b12efd..2bfc2f4 100644
+--- a/aerial_gym/control/controllers/rates_control.py
++++ b/aerial_gym/control/controllers/rates_control.py
+@@ -21,8 +21,12 @@ class LeeRatesController(BaseLeeController):
+         :return: m*g normalized thrust and interial normalized torques
+         """
+         self.reset_commands()
+-        # quaternion desired
+-        self.wrench_command[:, 2] = (command_actions[:, 0] - self.gravity) * self.mass
++        # thrust component calculation
++        # project gravity onto the body z-axis for compensation
++        R = quat_to_rotation_matrix(self.robot_orientation)
++        gravity_body_z = torch.sum(self.gravity * R[:, :, 2], dim=1)
++        self.wrench_command[:, 2] = (command_actions[:, 0] - gravity_body_z) * self.mass.squeeze(1)
++
+         self.wrench_command[:, 3:6] = self.compute_body_torque(
+             self.robot_orientation, command_actions[:, 1:4]
+         )
+diff --git a/aerial_gym/env_manager/env_manager.py b/aerial_gym/env_manager/env_manager.py
+index 0acb5bd..be1a169 100644
+--- a/aerial_gym/env_manager/env_manager.py
++++ b/aerial_gym/env_manager/env_manager.py
+@@ -281,16 +281,18 @@ class EnvManager(BaseManager):
+         # logger.debug(f"Resetting environments {env_ids}.")
+         self.IGE_env.reset_idx(env_ids)
+         num_obstacles = self.global_tensor_dict["num_obstacles_in_env"]
+-        self.asset_manager.reset_idx(env_ids, num_obstacles)
+-        nk = self.asset_manager.num_keep_in_env
+-        self.asset_manager.num_keep_in_env = self.asset_manager.num_keep_in_env // 2
+-        
+-        # Do a bernoulli sampling across indices such that each has a probability of 0.15 to be 1
+-        samples = torch.bernoulli(0.15*torch.ones(len(env_ids), device=self.device))
+-        selected_indices = torch.nonzero(samples)
+-
+-        self.asset_manager.reset_idx(env_ids[selected_indices], num_obstacles//2)
+-        self.asset_manager.num_keep_in_env = nk
++        if num_obstacles > 0:
++            self.asset_manager.reset_idx(env_ids, num_obstacles)
++            nk = self.asset_manager.num_keep_in_env
++            self.asset_manager.num_keep_in_env = self.asset_manager.num_keep_in_env // 2
++            
++            # Do a bernoulli sampling across indices such that each has a probability of 0.15 to be 1
++            samples = torch.bernoulli(0.15*torch.ones(len(env_ids), device=self.device))
++            selected_indices = torch.nonzero(samples).squeeze(-1)
++
++            if len(selected_indices) > 0:
++                self.asset_manager.reset_idx(env_ids[selected_indices], num_obstacles//2)
++            self.asset_manager.num_keep_in_env = nk
+ 
+         if self.cfg.env.use_warp:
+             self.warp_env.reset_idx(env_ids)
+@@ -321,7 +323,7 @@ class EnvManager(BaseManager):
+         )
+ 
+     def reset(self):
+-        self.reset_idx(env_ids=torch.arange(self.cfg.env.num_envs))
++        self.reset_idx(env_ids=torch.arange(self.cfg.env.num_envs, device=self.device))
+ 
+     def pre_physics_step(self, actions, env_actions):
+         # first let the robot compute the actions
+diff --git a/aerial_gym/examples/sys_id.py b/aerial_gym/examples/sys_id.py
+index 85840a0..6211ddd 100644
+--- a/aerial_gym/examples/sys_id.py
++++ b/aerial_gym/examples/sys_id.py
+@@ -5,98 +5,184 @@ from aerial_gym.sim.sim_builder import SimBuilder
+ import torch
+ from aerial_gym.utils.helpers import get_args
+ from matplotlib import pyplot as plt
++import numpy as np
+ 
+ CONTROLLER_MODES = {
+-    "attitude": "lmf2_attitude_control",
+-    "velocity": "lmf2_velocity_control",
+-    "acceleration": "lmf2_acceleration_control",
++    "bodyrate": "magpie_rates_control",
++    "attitude": "magpie_attitude_control",
++    "velocity": "magpie_velocity_control",
++    "acceleration": "magpie_acceleration_control",
+ }
+ 
+ DICT_MAP = {
++    "bodyrate": "robot_body_angvel",
+     "attitude": "robot_euler_angles",
+-    "velocity": "robot_vehicle_linvel",
++    "velocity": "robot_body_linvel",
+     "acceleration": "imu_measurement",
+ }
+ 
++# Action dimensions for each controller mode
++ACTION_DIMS = {
++    "bodyrate": 4,      # [thrust, roll_rate, pitch_rate, yaw_rate]
++    "attitude": 4,      # [thrust, roll, pitch, yaw_rate]
++    "velocity": 4,      # [vx, vy, vz, yaw_rate]
++    "acceleration": 4,  # [ax, ay, az, yaw_rate]
++}
++
+ Y_AXIS_LABELS = {
+     0: "X",
+     1: "Y",
+     2: "Z",
+     3: "Yaw Rate",
+-}
++}   
+ 
+ if __name__ == "__main__":
+-    CONTROL_MODE_NAME = "velocity"
++    CONTROL_MODE_NAME = "attitude"
+     DICT_MAP_ENTRY = DICT_MAP[CONTROL_MODE_NAME]
+     CONTROLLER_NAME = CONTROLLER_MODES[CONTROL_MODE_NAME]
++    ACTION_DIM = ACTION_DIMS[CONTROL_MODE_NAME]  # Get correct action dimension
++    
+     args = get_args()
++    
++    # Force device to be consistent
++    device = "cpu"
++    print(f"Using device: {device}")
++    
+     env_manager = SimBuilder().build_env(
+         sim_name="base_sim",
+         env_name="empty_env",
+-        robot_name="lmf2",
++        robot_name="magpie",
+         controller_name=CONTROLLER_NAME,
+         args=None,
+-        device="cuda:0",
++        device=device,  # Use the device variable
+         num_envs=args.num_envs,
+         headless=args.headless,
+         use_warp=args.use_warp,
+     )
+-    actions = torch.zeros((env_manager.num_envs, 4)).to("cuda:0")
++    actions = torch.zeros((env_manager.num_envs, ACTION_DIM), device=device)  # Use device directly
+     env_manager.reset()
+     tensor_dict = env_manager.get_obs()
+-    observations = torch.zeros((env_manager.num_envs, 4)).to("cuda:0")
++    
++    # Debug: Print action space info
++    print(f"Actions shape: {actions.shape}")
++    print(f"Expected action dim: {ACTION_DIM}")
++    print(f"Number of envs: {env_manager.num_envs}")
++    
++    observations = torch.zeros((env_manager.num_envs, 4)).to("cpu")
+     ACTION_MAGNITUDE = 1.0
+     SIM_DURATION_IN_SECONDS = 5.0
+     SIM_DT = 0.01
+     TIME_CONSTANT_MAGNITUDE = ACTION_MAGNITUDE * 0.63212
+     num_sim_steps = int(SIM_DURATION_IN_SECONDS / SIM_DT)
+-    observation_sequence = torch.zeros((num_sim_steps, env_manager.num_envs, 4)).to("cuda:0")
+-    actions_sequence = torch.zeros((num_sim_steps, env_manager.num_envs, 4)).to("cuda:0")
++    observation_sequence = torch.zeros((num_sim_steps, env_manager.num_envs, 4)).to("cpu")
++    actions_sequence = torch.zeros((num_sim_steps, env_manager.num_envs, 4)).to("cpu")
+     time_elapsed_np = torch.arange(0, SIM_DURATION_IN_SECONDS, SIM_DT).cpu().numpy()
+     print(f"\n\n\n\nPerforming System Identification for {CONTROL_MODE_NAME} control mode\n\n")
+-    for action_index in range(4):
++    
++    summary_results = []
++    SETTLING_THRESHOLD = 0.05 # 5% band
++    
++    for action_index in range(ACTION_DIM):
++        if action_index == 0: # Skip thrust as requested in tune_controllers pattern
++            continue
++            
+         actions[:] = 0.0
+-        print("Action Index: ", action_index)
+-        time_constant = 0.0
++        print(f"Analyzing {Y_AXIS_LABELS[action_index]} Response (Index: {action_index})...")
++        
++        env_manager.reset()
+         for i in range(num_sim_steps):
+             if i == num_sim_steps // 2:
+                 actions[:, action_index] = ACTION_MAGNITUDE
++            
+             env_manager.step(actions)
++            tensor_dict = env_manager.get_obs() # FIX: Update observation dict
+             observations[:, 0:3] = tensor_dict[DICT_MAP_ENTRY][:, 0:3]
+             observations[:, 3] = tensor_dict["robot_angvel"][:, 2]
+-            if CONTROL_MODE_NAME == "attitude":
+-                if action_index > 0:
+-                    if (
+-                        observations[0, action_index - 1] > TIME_CONSTANT_MAGNITUDE
+-                        and time_constant == 0.0
+-                    ):
+-                        time_constant = (i - num_sim_steps // 2) * SIM_DT
+-            else:
+-                if observations[0, action_index] > TIME_CONSTANT_MAGNITUDE and time_constant == 0.0:
+-                    time_constant = (i - num_sim_steps // 2) * SIM_DT
++            
+             observation_sequence[i] = observations
+-            if CONTROL_MODE_NAME == "attitude":
+-                actions_sequence[i, :, 0:2] = actions[:, 1:3]
+-                actions_sequence[i, :, 3] = actions[:, 3]
+-            else:
+-                actions_sequence[i] = actions
++            actions_sequence[i, :, 0:3] = actions[:, 1:4] # Map Roll, Pitch, Yaw
+ 
+-        # plot the response of the system:
++        # Post-process metrics
+         observation_sequence_np = observation_sequence.clone().cpu().numpy()
+-        actions_sequence_np = actions_sequence.clone().cpu().numpy()
+-        fig, axs = plt.subplots(4, 1)
+-        print("Time Constant: ", time_constant)
+-        fig.suptitle(
+-            f"System ID for {CONTROL_MODE_NAME} with activation in action {action_index}",
+-            fontsize=16,
+-        )
++        
++        # Determine which observation index to analyze
++        if action_index == 3:
++            obs_index = 3  # Yaw rate
++        elif CONTROL_MODE_NAME == "attitude" or CONTROL_MODE_NAME == "bodyrate":
++            obs_index = action_index - 1 # Roll/Pitch indices (0, 1)
++        else:
++            obs_index = action_index
++            
++        response = observation_sequence_np[:, 0, obs_index]
++        step_start_idx = num_sim_steps // 2
++        
++        # Analysis phase
++        post_step_response = response[step_start_idx:]
++        post_step_time = time_elapsed_np[step_start_idx:] - time_elapsed_np[step_start_idx]
++        
++        steady_state_value = np.mean(response[int(0.9 * num_sim_steps):])
++        
++        # Time constant (63.2%)
++        target_63 = 0.632 * steady_state_value
++        idx_63 = np.where(post_step_response >= target_63)[0]
++        time_constant = post_step_time[idx_63[0]] if len(idx_63) > 0 else 0.0
++        
++        # Overshoot
++        max_val = np.max(post_step_response)
++        overshoot = max(0, (max_val - steady_state_value) / steady_state_value * 100) if steady_state_value != 0 else 0.0
++        
++        # Settling Time (±5%)
++        settling_time = 0.0
++        upper_bound = steady_state_value * (1 + SETTLING_THRESHOLD)
++        lower_bound = steady_state_value * (1 - SETTLING_THRESHOLD)
++        for t_idx in range(len(post_step_response) - 1, 0, -1):
++            if post_step_response[t_idx] > upper_bound or post_step_response[t_idx] < lower_bound:
++                settling_time = post_step_time[t_idx]
++                break
++        
++        # Steady State Error
++        ss_error = abs(ACTION_MAGNITUDE - steady_state_value) / ACTION_MAGNITUDE * 100 if ACTION_MAGNITUDE != 0 else 0.0
++        
++        summary_results.append({
++            'Axis': Y_AXIS_LABELS[action_index],
++            'TC': time_constant,
++            'Overshoot': overshoot,
++            'SettlingTime': settling_time,
++            'SSError': ss_error,
++            'SSValue': steady_state_value
++        })
++
++        # Plot the response
++        fig, axs = plt.subplots(4, 1, figsize=(10, 12))
++        fig.suptitle(f"System ID: {CONTROL_MODE_NAME.upper()} - {Y_AXIS_LABELS[action_index]} Response", fontsize=16)
++        
+         for i in range(4):
+-            axs[i].plot(time_elapsed_np, observation_sequence_np[:, 0, i])
+-            axs[i].plot(time_elapsed_np, actions_sequence_np[:, 0, i])
++            axs[i].plot(time_elapsed_np, observation_sequence_np[:, 0, i], label='Observed')
++            # Create a command sequence for plotting
++            cmd_plot = np.zeros_like(time_elapsed_np)
++            if i == obs_index:
++                cmd_plot[step_start_idx:] = ACTION_MAGNITUDE
++            axs[i].plot(time_elapsed_np, cmd_plot, '--', label='Command')
++            
+             axs[i].set_ylabel(Y_AXIS_LABELS[i])
+-            axs[i].set_xlabel("Time")
+-            axs[i].set_ylim(-2, 2)
++            axs[i].legend(loc='upper right')
++            axs[i].grid(True)
++            if i == 3:
++                axs[i].set_xlabel("Time (s)")
++
++        plt.tight_layout()
+         plt.show(block=False)
++        
+         env_manager.reset()
+ 
++    # Final Data Output
++    print("\n" + "="*85)
++    print(f"SYSTEM IDENTIFICATION SUMMARY: {CONTROL_MODE_NAME.upper()} MODE")
++    print("="*85)
++    print(f"{'Axis':<15} | {'TC (s)':<10} | {'Overshoot (%)':<15} | {'Settling (s)':<12} | {'SS Error (%)':<12}")
++    print("-" * 85)
++    for res in summary_results:
++        print(f"{res['Axis']:<15} | {res['TC']:<10.4f} | {res['Overshoot']:<15.2f} | {res['SettlingTime']:<12.4f} | {res['SSError']:<12.2f}")
++    print("="*85 + "\n")
++    
+     plt.show()
+diff --git a/aerial_gym/task/lidar_navigation_task/lidar_navigation_task.py b/aerial_gym/task/lidar_navigation_task/lidar_navigation_task.py
+index 18bbd6c..34aa4d4 100644
+--- a/aerial_gym/task/lidar_navigation_task/lidar_navigation_task.py
++++ b/aerial_gym/task/lidar_navigation_task/lidar_navigation_task.py
+@@ -84,6 +84,9 @@ class LiDARNavigationTask(BaseTask):
+             (self.sim_env.num_envs, 48, 120, 3), device=self.device
+         )
+ 
++        self.current_action = torch.zeros((self.sim_env.num_envs, 4), device=self.device)
++        self.prev_action = torch.zeros((self.sim_env.num_envs, 4), device=self.device)
++
+         self.time_to_collision = torch.zeros((self.sim_env.num_envs), device=self.device)
+         self.target_yaw = torch.zeros((self.sim_env.num_envs), device=self.device)
+ 
+@@ -305,6 +308,36 @@ class LiDARNavigationTask(BaseTask):
+         ).to(self.device)
+         ds_lidar_data[:, 10:][low_range_points_mask == 1] = random_low_ranges[low_range_points_mask == 1]
+         return ds_lidar_data
++    
++
++    # # For radar navigation
++
++    # def add_noise_to_downsampled_lidar_data(self, ds_lidar_data):
++    #     # random noise to 3% pixels
++    #     noise_mask = torch.bernoulli(
++    #         0.03 * torch.ones_like(ds_lidar_data)).to(self.device)
++    #     ds_lidar_data[noise_mask == 1] += torch_rand_float_tensor(
++    #         0.2 * torch.ones_like(noise_mask[noise_mask == 1]),
++    #         10.0 * torch.ones_like(noise_mask[noise_mask == 1])
++    #     ).to(self.device)
++
++    #     # bernoulli sampling to have 60 - 90 % points max range
++    #     bernoulli_probability = torch.rand(1, device=self.device)[0] * 0.2 + 0.6
++    #     max_range_points_mask = torch.bernoulli(
++    #         bernoulli_probability*torch.ones_like(ds_lidar_data)).to(self.device)
++    #     ds_lidar_data[max_range_points_mask == 1] = -1 #10.0
++
++    #     # 1-2% points in the bottom half of the image to be a low value between 0.2 to 1 meter
++    #     # 5% pixels below 10: index of ds_lidar_data should have random range between 0.2 to 1.0 metres
++
++    #     # low_range_points_mask = torch.bernoulli(
++    #     #     0.02 * torch.ones_like(ds_lidar_data[:, 10:])).to(self.device)
++    #     # random_low_ranges = torch_rand_float_tensor(
++    #     #     0.2 * torch.ones_like(low_range_points_mask),
++    #     #     1.0 * torch.ones_like(low_range_points_mask)
++    #     # ).to(self.device)
++    #     # ds_lidar_data[:, 10:][low_range_points_mask == 1] = random_low_ranges[low_range_points_mask == 1]
++    #     return ds_lidar_data
+ 
+ 
+     def process_image_observation(self):
+@@ -391,8 +424,9 @@ class LiDARNavigationTask(BaseTask):
+         # In this case, the episodes that are terminated need to be
+         # first reset, and the first obseration of the new episode
+         # needs to be returned.
+-
++        self.prev_action[:] = self.current_action[:]
+         transformed_action = self.action_transformation_function(actions)
++        self.current_action[:] = transformed_action[:]
+         logger.debug(
+             f"raw_action: {actions[0]}, transformed action: {transformed_action[0]}")
+         self.sim_env.step(actions=transformed_action)
+@@ -511,9 +545,11 @@ class LiDARNavigationTask(BaseTask):
+             self.obs_dict["robot_body_angvel"],
+             yaw_error,
+             obs_dict["crashes"],
+-            obs_dict["robot_actions"],
+-            obs_dict["robot_prev_actions"],
+-            self.time_to_collision,    
++            # obs_dict["robot_actions"],
++            # obs_dict["robot_prev_actions"],
++            self.current_action,
++            self.prev_action,
++            self.time_to_collision,
+             self.curriculum_progress_fraction,
+             self.task_config.reward_parameters,
+         )
+@@ -626,11 +662,18 @@ def compute_reward(
+         torch.clamp(robot_vel_norm - 3.0, min=0.0),
+     )
+ 
++    close_to_goal = 1.0 - exponential_reward_function(
++        1.0,
++        2.0,
++        dist
++    )
++
++    # relax the negative penalty when relatively close to goal
+     negative_x_vel_penalty = exponential_penalty_function(
+         2.0,
+         8.0,
+         torch.clamp(robot_vehicle_linvel[:, 0], min=0.0),
+-    )
++    ) * close_to_goal
+ 
+     vel_penalty_for_acc = vel_magnitude_penalty + negative_x_vel_penalty
+ 
+@@ -705,7 +748,7 @@ def compute_reward(
+ 
+     time_to_collision_penalty = exponential_reward_function(
+         -3.0,
+-        1.0,
++        2.0,
+         time_to_collision**2
+     )
+ 
+diff --git a/aerial_gym/utils/helpers.py b/aerial_gym/utils/helpers.py
+index 01557d1..b8c0e2d 100644
+--- a/aerial_gym/utils/helpers.py
++++ b/aerial_gym/utils/helpers.py
+@@ -173,7 +173,7 @@ def get_args(additional_parameters=[]):
+         {
+             "name": "--num_envs",
+             "type": int,
+-            "default": "64",
++            "default": "1",
+             "help": "Number of environments to create. Overrides config file if provided.",
+         },
+         {
