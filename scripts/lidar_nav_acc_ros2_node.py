@@ -47,7 +47,7 @@ class Config:
     # ROS topics
     IMAGE_TOPIC = "/m100/front/depth_image"
     POINTCLOUD_TOPIC = "/rslidar_points"
-    ODOM_TOPIC = "/msf_core/odometry"
+    ODOM_TOPIC = "/msf_core/odometry_50hz"
     ACTION_TOPIC = "/cmd_vel"
     TARGET_TOPIC = "/target"
     MAVROS_STATE_TOPIC = "/rmf/mavros/state"
