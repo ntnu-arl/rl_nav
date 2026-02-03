@@ -3,7 +3,7 @@
   "algo": "APPO",
   "env": "lidar_navigation_task",
   "experiment": "magpie_accel_policy3_aggressive_magpie_refined_params_02022026_smooth_aggressive_ttc",
-  "train_dir": "../",
+  "train_dir": "../models",
   "restart_behavior": "overwrite",
   "device": "gpu",
   "seed": null,
