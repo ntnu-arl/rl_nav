@@ -1,0 +1,303 @@
+diff --git a/aerial_gym/config/controller_config/magpie_controller_config.py b/aerial_gym/config/controller_config/magpie_controller_config.py
+index a644b51..efb59cf 100644
+--- a/aerial_gym/config/controller_config/magpie_controller_config.py
++++ b/aerial_gym/config/controller_config/magpie_controller_config.py
+@@ -29,15 +29,15 @@ class control:
+     K_vel_tensor_min = [2.7, 2.7, 2.3]
+ 
+     K_rot_tensor_max = [
+-        10.9453125, 10.9453125, 0.32499998807907104
++        12.9453125, 12.9453125, 0.32499998807907104
+     ]  # used for lee_position_control, lee_velocity_control and lee_attitude_control
+-    K_rot_tensor_min = [10.9453125, 10.9453125, 0.32499998807907104]
++    K_rot_tensor_min = [8.9453125, 8.9453125, 0.32499998807907104]
+ 
+     
+ 
+     K_angvel_tensor_max = [
+-        0.7910937666893005, 0.7910937666893005, 0.038818358927965164
++        0.8910937666893005, 0.8910937666893005, 0.048818358927965164
+     ]  # used for lee_position_control, lee_velocity_control and lee_attitude_control
+-    K_angvel_tensor_min = [0.7910937666893005, 0.7910937666893005, 0.038818358927965164]
++    K_angvel_tensor_min = [0.65910937666893005, 0.65910937666893005, 0.028818358927965164]
+ 
+-    randomize_params = False
++    randomize_params = True
+diff --git a/aerial_gym/config/robot_config/magpie_config.py b/aerial_gym/config/robot_config/magpie_config.py
+index 4ec4a74..078d70b 100644
+--- a/aerial_gym/config/robot_config/magpie_config.py
++++ b/aerial_gym/config/robot_config/magpie_config.py
+@@ -158,19 +158,19 @@ class MagpieCfg:
+             [1.0, 1.0, 1.0, 1.0],
+             [-0.13, -0.13, 0.13, 0.13],
+             [-0.13, 0.13, 0.13, -0.13],
+-            [-0.07, 0.07, -0.07, 0.07],
++            [-0.02, 0.02, -0.02, 0.02],
+         ]
+ 
+         class motor_model_config:
+             use_rps = True
+             motor_thrust_constant_min = 0.00000926312
+             motor_thrust_constant_max = 0.00001826312
+-            motor_time_constant_increasing_min = 0.05
+-            motor_time_constant_increasing_max = 0.08
++            motor_time_constant_increasing_min = 0.01
++            motor_time_constant_increasing_max = 0.02
+             motor_time_constant_decreasing_min = 0.005
+             motor_time_constant_decreasing_max = 0.015
+             max_thrust = 12.0
+             min_thrust = 0.1
+             max_thrust_rate = 1000000.0
+-            thrust_to_torque_ratio = 0.07
++            thrust_to_torque_ratio = 0.02
+             use_discrete_approximation = True  # use discrete approximation for motor dynamics
+diff --git a/aerial_gym/control/controllers/rates_control.py b/aerial_gym/control/controllers/rates_control.py
+index 6b12efd..2bfc2f4 100644
+--- a/aerial_gym/control/controllers/rates_control.py
++++ b/aerial_gym/control/controllers/rates_control.py
+@@ -21,8 +21,12 @@ class LeeRatesController(BaseLeeController):
+         :return: m*g normalized thrust and interial normalized torques
+         """
+         self.reset_commands()
+-        # quaternion desired
+-        self.wrench_command[:, 2] = (command_actions[:, 0] - self.gravity) * self.mass
++        # thrust component calculation
++        # project gravity onto the body z-axis for compensation
++        R = quat_to_rotation_matrix(self.robot_orientation)
++        gravity_body_z = torch.sum(self.gravity * R[:, :, 2], dim=1)
++        self.wrench_command[:, 2] = (command_actions[:, 0] - gravity_body_z) * self.mass.squeeze(1)
++
+         self.wrench_command[:, 3:6] = self.compute_body_torque(
+             self.robot_orientation, command_actions[:, 1:4]
+         )
+diff --git a/aerial_gym/examples/sys_id.py b/aerial_gym/examples/sys_id.py
+index 85840a0..6211ddd 100644
+--- a/aerial_gym/examples/sys_id.py
++++ b/aerial_gym/examples/sys_id.py
+@@ -5,98 +5,184 @@ from aerial_gym.sim.sim_builder import SimBuilder
+ import torch
+ from aerial_gym.utils.helpers import get_args
+ from matplotlib import pyplot as plt
++import numpy as np
+ 
+ CONTROLLER_MODES = {
+-    "attitude": "lmf2_attitude_control",
+-    "velocity": "lmf2_velocity_control",
+-    "acceleration": "lmf2_acceleration_control",
++    "bodyrate": "magpie_rates_control",
++    "attitude": "magpie_attitude_control",
++    "velocity": "magpie_velocity_control",
++    "acceleration": "magpie_acceleration_control",
+ }
+ 
+ DICT_MAP = {
++    "bodyrate": "robot_body_angvel",
+     "attitude": "robot_euler_angles",
+-    "velocity": "robot_vehicle_linvel",
++    "velocity": "robot_body_linvel",
+     "acceleration": "imu_measurement",
+ }
+ 
++# Action dimensions for each controller mode
++ACTION_DIMS = {
++    "bodyrate": 4,      # [thrust, roll_rate, pitch_rate, yaw_rate]
++    "attitude": 4,      # [thrust, roll, pitch, yaw_rate]
++    "velocity": 4,      # [vx, vy, vz, yaw_rate]
++    "acceleration": 4,  # [ax, ay, az, yaw_rate]
++}
++
+ Y_AXIS_LABELS = {
+     0: "X",
+     1: "Y",
+     2: "Z",
+     3: "Yaw Rate",
+-}
++}   
+ 
+ if __name__ == "__main__":
+-    CONTROL_MODE_NAME = "velocity"
++    CONTROL_MODE_NAME = "attitude"
+     DICT_MAP_ENTRY = DICT_MAP[CONTROL_MODE_NAME]
+     CONTROLLER_NAME = CONTROLLER_MODES[CONTROL_MODE_NAME]
++    ACTION_DIM = ACTION_DIMS[CONTROL_MODE_NAME]  # Get correct action dimension
++    
+     args = get_args()
++    
++    # Force device to be consistent
++    device = "cpu"
++    print(f"Using device: {device}")
++    
+     env_manager = SimBuilder().build_env(
+         sim_name="base_sim",
+         env_name="empty_env",
+-        robot_name="lmf2",
++        robot_name="magpie",
+         controller_name=CONTROLLER_NAME,
+         args=None,
+-        device="cuda:0",
++        device=device,  # Use the device variable
+         num_envs=args.num_envs,
+         headless=args.headless,
+         use_warp=args.use_warp,
+     )
+-    actions = torch.zeros((env_manager.num_envs, 4)).to("cuda:0")
++    actions = torch.zeros((env_manager.num_envs, ACTION_DIM), device=device)  # Use device directly
+     env_manager.reset()
+     tensor_dict = env_manager.get_obs()
+-    observations = torch.zeros((env_manager.num_envs, 4)).to("cuda:0")
++    
++    # Debug: Print action space info
++    print(f"Actions shape: {actions.shape}")
++    print(f"Expected action dim: {ACTION_DIM}")
++    print(f"Number of envs: {env_manager.num_envs}")
++    
++    observations = torch.zeros((env_manager.num_envs, 4)).to("cpu")
+     ACTION_MAGNITUDE = 1.0
+     SIM_DURATION_IN_SECONDS = 5.0
+     SIM_DT = 0.01
+     TIME_CONSTANT_MAGNITUDE = ACTION_MAGNITUDE * 0.63212
+     num_sim_steps = int(SIM_DURATION_IN_SECONDS / SIM_DT)
+-    observation_sequence = torch.zeros((num_sim_steps, env_manager.num_envs, 4)).to("cuda:0")
+-    actions_sequence = torch.zeros((num_sim_steps, env_manager.num_envs, 4)).to("cuda:0")
++    observation_sequence = torch.zeros((num_sim_steps, env_manager.num_envs, 4)).to("cpu")
++    actions_sequence = torch.zeros((num_sim_steps, env_manager.num_envs, 4)).to("cpu")
+     time_elapsed_np = torch.arange(0, SIM_DURATION_IN_SECONDS, SIM_DT).cpu().numpy()
+     print(f"\n\n\n\nPerforming System Identification for {CONTROL_MODE_NAME} control mode\n\n")
+-    for action_index in range(4):
++    
++    summary_results = []
++    SETTLING_THRESHOLD = 0.05 # 5% band
++    
++    for action_index in range(ACTION_DIM):
++        if action_index == 0: # Skip thrust as requested in tune_controllers pattern
++            continue
++            
+         actions[:] = 0.0
+-        print("Action Index: ", action_index)
+-        time_constant = 0.0
++        print(f"Analyzing {Y_AXIS_LABELS[action_index]} Response (Index: {action_index})...")
++        
++        env_manager.reset()
+         for i in range(num_sim_steps):
+             if i == num_sim_steps // 2:
+                 actions[:, action_index] = ACTION_MAGNITUDE
++            
+             env_manager.step(actions)
++            tensor_dict = env_manager.get_obs() # FIX: Update observation dict
+             observations[:, 0:3] = tensor_dict[DICT_MAP_ENTRY][:, 0:3]
+             observations[:, 3] = tensor_dict["robot_angvel"][:, 2]
+-            if CONTROL_MODE_NAME == "attitude":
+-                if action_index > 0:
+-                    if (
+-                        observations[0, action_index - 1] > TIME_CONSTANT_MAGNITUDE
+-                        and time_constant == 0.0
+-                    ):
+-                        time_constant = (i - num_sim_steps // 2) * SIM_DT
+-            else:
+-                if observations[0, action_index] > TIME_CONSTANT_MAGNITUDE and time_constant == 0.0:
+-                    time_constant = (i - num_sim_steps // 2) * SIM_DT
++            
+             observation_sequence[i] = observations
+-            if CONTROL_MODE_NAME == "attitude":
+-                actions_sequence[i, :, 0:2] = actions[:, 1:3]
+-                actions_sequence[i, :, 3] = actions[:, 3]
+-            else:
+-                actions_sequence[i] = actions
++            actions_sequence[i, :, 0:3] = actions[:, 1:4] # Map Roll, Pitch, Yaw
+ 
+-        # plot the response of the system:
++        # Post-process metrics
+         observation_sequence_np = observation_sequence.clone().cpu().numpy()
+-        actions_sequence_np = actions_sequence.clone().cpu().numpy()
+-        fig, axs = plt.subplots(4, 1)
+-        print("Time Constant: ", time_constant)
+-        fig.suptitle(
+-            f"System ID for {CONTROL_MODE_NAME} with activation in action {action_index}",
+-            fontsize=16,
+-        )
++        
++        # Determine which observation index to analyze
++        if action_index == 3:
++            obs_index = 3  # Yaw rate
++        elif CONTROL_MODE_NAME == "attitude" or CONTROL_MODE_NAME == "bodyrate":
++            obs_index = action_index - 1 # Roll/Pitch indices (0, 1)
++        else:
++            obs_index = action_index
++            
++        response = observation_sequence_np[:, 0, obs_index]
++        step_start_idx = num_sim_steps // 2
++        
++        # Analysis phase
++        post_step_response = response[step_start_idx:]
++        post_step_time = time_elapsed_np[step_start_idx:] - time_elapsed_np[step_start_idx]
++        
++        steady_state_value = np.mean(response[int(0.9 * num_sim_steps):])
++        
++        # Time constant (63.2%)
++        target_63 = 0.632 * steady_state_value
++        idx_63 = np.where(post_step_response >= target_63)[0]
++        time_constant = post_step_time[idx_63[0]] if len(idx_63) > 0 else 0.0
++        
++        # Overshoot
++        max_val = np.max(post_step_response)
++        overshoot = max(0, (max_val - steady_state_value) / steady_state_value * 100) if steady_state_value != 0 else 0.0
++        
++        # Settling Time (±5%)
++        settling_time = 0.0
++        upper_bound = steady_state_value * (1 + SETTLING_THRESHOLD)
++        lower_bound = steady_state_value * (1 - SETTLING_THRESHOLD)
++        for t_idx in range(len(post_step_response) - 1, 0, -1):
++            if post_step_response[t_idx] > upper_bound or post_step_response[t_idx] < lower_bound:
++                settling_time = post_step_time[t_idx]
++                break
++        
++        # Steady State Error
++        ss_error = abs(ACTION_MAGNITUDE - steady_state_value) / ACTION_MAGNITUDE * 100 if ACTION_MAGNITUDE != 0 else 0.0
++        
++        summary_results.append({
++            'Axis': Y_AXIS_LABELS[action_index],
++            'TC': time_constant,
++            'Overshoot': overshoot,
++            'SettlingTime': settling_time,
++            'SSError': ss_error,
++            'SSValue': steady_state_value
++        })
++
++        # Plot the response
++        fig, axs = plt.subplots(4, 1, figsize=(10, 12))
++        fig.suptitle(f"System ID: {CONTROL_MODE_NAME.upper()} - {Y_AXIS_LABELS[action_index]} Response", fontsize=16)
++        
+         for i in range(4):
+-            axs[i].plot(time_elapsed_np, observation_sequence_np[:, 0, i])
+-            axs[i].plot(time_elapsed_np, actions_sequence_np[:, 0, i])
++            axs[i].plot(time_elapsed_np, observation_sequence_np[:, 0, i], label='Observed')
++            # Create a command sequence for plotting
++            cmd_plot = np.zeros_like(time_elapsed_np)
++            if i == obs_index:
++                cmd_plot[step_start_idx:] = ACTION_MAGNITUDE
++            axs[i].plot(time_elapsed_np, cmd_plot, '--', label='Command')
++            
+             axs[i].set_ylabel(Y_AXIS_LABELS[i])
+-            axs[i].set_xlabel("Time")
+-            axs[i].set_ylim(-2, 2)
++            axs[i].legend(loc='upper right')
++            axs[i].grid(True)
++            if i == 3:
++                axs[i].set_xlabel("Time (s)")
++
++        plt.tight_layout()
+         plt.show(block=False)
++        
+         env_manager.reset()
+ 
++    # Final Data Output
++    print("\n" + "="*85)
++    print(f"SYSTEM IDENTIFICATION SUMMARY: {CONTROL_MODE_NAME.upper()} MODE")
++    print("="*85)
++    print(f"{'Axis':<15} | {'TC (s)':<10} | {'Overshoot (%)':<15} | {'Settling (s)':<12} | {'SS Error (%)':<12}")
++    print("-" * 85)
++    for res in summary_results:
++        print(f"{res['Axis']:<15} | {res['TC']:<10.4f} | {res['Overshoot']:<15.2f} | {res['SettlingTime']:<12.4f} | {res['SSError']:<12.2f}")
++    print("="*85 + "\n")
++    
+     plt.show()
