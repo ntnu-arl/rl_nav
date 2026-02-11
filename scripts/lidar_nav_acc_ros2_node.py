@@ -59,9 +59,10 @@ class Config:
     # Action transformation (match your training config)
     # These should match the action_transformation_function in your task config
     # ACTION_SCALE = np.array([0.75, 0.5, 0.6, 0.6])  # m/s  8Jan2026
-    ACTION_SCALE = np.array([0.85, 0.5, 0.8, 0.6])  # m/s  26Jan2026
+    # ACTION_SCALE = np.array([0.85, 0.5, 0.6, 0.6])  # m/s  26Jan2026 , magpie_accel3
+    ACTION_SCALE = np.array([0.85, 0.5, 0.4, 0.6])  # m/s  magpie_accel4
 
-    OFFSET = 1.0
+    OFFSET = 0.0
     
     # Frame IDs
     BODY_FRAME_ID = "mimosa_body"
@@ -69,7 +70,8 @@ class Config:
     # Control
     USE_MAVROS_STATE = False
     # ACTION_FILTER_ALPHA = np.array([0.15, 0.4, 0.2, 0.5])  # EMA filter 8Jan2026
-    ACTION_FILTER_ALPHA = np.array([0.15, 0.2, 0.2, 0.3])  # EMA filter 26Jan2026
+    # ACTION_FILTER_ALPHA = np.array([0.25, 0.3, 0.2, 0.3])  # EMA filter 26Jan2026, magpie_accel3
+    ACTION_FILTER_ALPHA = np.array([0.25, 0.3, 0.001, 0.3])  # EMA filter magpie_accel4
 
     
     # Device
