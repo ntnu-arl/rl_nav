@@ -61,6 +61,7 @@ class Config:
     # ACTION_SCALE = np.array([0.75, 0.5, 0.6, 0.6])  # m/s  8Jan2026
     # ACTION_SCALE = np.array([0.85, 0.5, 0.6, 0.6])  # m/s  26Jan2026 , magpie_accel3
     ACTION_SCALE = np.array([0.85, 0.5, 0.4, 0.6])  # m/s  magpie_accel4
+    # ACTION_SCALE = np.array([0.85, 0.65, 0.4, 0.6])  # m/s  magpie_accel5
 
     OFFSET = 0.0
     
@@ -72,6 +73,7 @@ class Config:
     # ACTION_FILTER_ALPHA = np.array([0.15, 0.4, 0.2, 0.5])  # EMA filter 8Jan2026
     # ACTION_FILTER_ALPHA = np.array([0.25, 0.3, 0.2, 0.3])  # EMA filter 26Jan2026, magpie_accel3
     ACTION_FILTER_ALPHA = np.array([0.25, 0.3, 0.001, 0.3])  # EMA filter magpie_accel4
+    # ACTION_FILTER_ALPHA = np.array([0.25, 0.25, 0.001, 0.3])  # EMA filter magpie_accel5
 
     
     # Device
@@ -399,7 +401,13 @@ class LidarNavigationNode(Node):
         # Transform to body frame velocities
         # clamp action first
         action = np.clip(action, -1.0, 1.0)
+        # for 2m/s
         action[0:3] = 2.0*(action[0:3])
+        # for 3m/s
+        # action[0:2] = 3.0*(action[0:2])
+        # action[2] = 2.0 * action[2]
+        
+        # yaw scaling
         action[3] = np.pi/3.0*(action[3])
         scaled_action = action * cfg.ACTION_SCALE
         return scaled_action
