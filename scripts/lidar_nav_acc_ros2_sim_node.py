@@ -48,6 +48,7 @@ class Config:
     POINTCLOUD_TOPIC = "/rmf_unipilot/lidar/points"
     ODOM_TOPIC = "/rmf_unipilot/odom"
     ACTION_TOPIC = "/rmf_unipilot/cmd/acc"
+    # ACTION_TOPIC = "/sdf_nmpc/cmd/acc"
     TARGET_TOPIC = "/target"
     MAVROS_STATE_TOPIC = "/rmf/mavros/state"
     PATH_TOPIC = "/gbplanner_path"
