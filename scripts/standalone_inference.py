@@ -2,6 +2,14 @@ import time
 from collections import deque
 from typing import Dict, Tuple
 
+import inspect, torch
+if "weights_only" in inspect.signature(torch.load).parameters:
+    _orig = torch.load
+    def _load_compat(*a, **kw):
+        kw.setdefault("weights_only", False)
+        return _orig(*a, **kw)
+    torch.load = _load_compat
+
 from sample_factory.algo.utils.context import global_model_factory
 from sample_factory.model.encoder import *
 
