@@ -1,5 +1,7 @@
 # rl_nav
 
+Inference scripts for the RL navigation module of the [Unified Autonomy Stack](https://github.com/ntnu-arl/unified_autonomy_stack/). Full documentation at [ntnu-arl.github.io/unified_autonomy_stack/rl](https://ntnu-arl.github.io/unified_autonomy_stack/rl/).
+
 ROS 2 package for reinforcement-learning-based LiDAR navigation on UAVs. Policies are trained in [Aerial Gym](https://github.com/ntnu-arl/aerial_gym_simulator) using [Sample Factory](https://github.com/alex-petrenko/sample-factory) (PPO + GRU) and deployed here for real-time inference.
 
 The package focuses on **acceleration control**: the policy outputs body-frame linear accelerations and yaw rate directly from LiDAR and state observations, without an intermediate velocity controller.

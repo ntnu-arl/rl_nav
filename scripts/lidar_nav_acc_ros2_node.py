@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Inference script for the RL module of the Unified Autonomy Stack.
+# Repo: https://github.com/ntnu-arl/unified_autonomy_stack/
+# Docs: https://ntnu-arl.github.io/unified_autonomy_stack/rl/
 
 import rclpy
 from rclpy.node import Node
