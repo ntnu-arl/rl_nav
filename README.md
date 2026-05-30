@@ -67,6 +67,62 @@ The `--train_dir` flag must point to the `models/` directory of this repo (the p
 
 ---
 
+## Importing Models from Aerial Gym
+
+Training uses the `lidar_navigation_task` environment in [Aerial Gym](https://github.com/ntnu-arl/aerial_gym_simulator) with [Sample Factory](https://github.com/alex-petrenko/sample-factory):
+
+```bash
+python train.py \
+    --env=lidar_navigation_task \
+    --experiment=<experiment_name> \
+    --train_dir=<path>/models \
+    --with_wandb=false
+```
+
+To deploy a trained policy:
+
+1. **Copy the experiment folder** from your Aerial Gym `train_dir` into `models/`:
+
+   ```
+   models/<your_experiment_name>/
+   ├── config.json
+   └── checkpoint_p0/
+       └── best_*.pth
+   ```
+
+2. **Update `config.json`** — set `"train_dir": "../models"` so the checkpoint path resolves correctly. Set `"load_checkpoint_kind": "best"` to load the best checkpoint instead of the latest.
+
+3. **Pass the experiment name** on the command line:
+
+   ```bash
+   python3 lidar_nav_acc_ros2_node.py \
+       --env=lidar_navigation_task \
+       --experiment=<your_experiment_name> \
+       --train_dir=/path/to/rl_nav/models
+   ```
+
+4. **Tune the action scaling** in `Config` for sim-to-real transfer. These are inference-only parameters and do not exist in the training scripts — adjust them empirically on the real platform:
+
+   ```python
+   ACTION_SCALE = np.array([0.85, 0.5, 0.4, 0.6])  # policy4 values
+   ```
+
+5. **Tune the EMA filter** to smooth commands on the real platform. Also inference-only:
+
+   ```python
+   ACTION_FILTER_ALPHA = np.array([0.25, 0.3, 0.001, 0.3])
+   ```
+   Alpha=0 means no filtering (pass-through). Alpha→1 means heavy smoothing.
+
+Network architecture (fixed in `standalone_inference.py`):
+- **Encoder**: Conv2d(1→16→32→64) on 16×20 LiDAR image, 128-dim output; concatenated with 17-dim state → MLP (256-128-64)
+- **Core**: GRU, 128 hidden units, 1 layer
+- **Head**: Linear to 4 actions with adaptive std
+
+The architecture fields in `config.json` are read automatically by Sample Factory — do not edit them.
+
+---
+
 ## ROS 2 Topics
 
 ### Subscribers
@@ -114,7 +170,7 @@ The LiDAR grid is produced by spherical binning (480 azimuth × 48 elevation) fo
 
 The network outputs 4 values in [-1, 1] which are scaled to physical units:
 
-| Channel | Scale (policy5) | Unit |
+| Channel | Scale (policy4) | Unit |
 |---------|-----------------|------|
 | ax (forward) | 2.0 × 0.85 | m/s² |
 | ay (lateral) | 2.0 × 0.50 | m/s² |
@@ -122,43 +178,6 @@ The network outputs 4 values in [-1, 1] which are scaled to physical units:
 | yaw rate | π/3 × 0.60 | rad/s |
 
 ---
-
-## Changing the Model
-
-To swap in a policy trained in Aerial Gym with [Sample Factory](https://github.com/alex-petrenko/sample-factory):
-
-1. **Copy the experiment folder** from your Aerial Gym `train_dir` into `models/`:
-
-   ```
-   models/<your_experiment_name>/
-   ├── config.json
-   └── checkpoint_p0/
-       └── best_*.pth
-   ```
-
-2. **Pass the experiment name** on the command line:
-
-   ```bash
-   python3 lidar_nav_acc_ros2_node.py \
-       --env=lidar_navigation_task \
-       --experiment=<your_experiment_name> \
-       --train_dir=/path/to/rl_nav/models
-   ```
-
-3. **Match the action scaling** in `Config` at the top of the node script to whatever `action_transformation_function` your Aerial Gym task used. For example:
-
-   ```python
-   ACTION_SCALE = np.array([0.85, 0.5, 0.4, 0.6])  # policy4 values
-   ```
-
-4. **Match the EMA filter** if you changed dynamics:
-
-   ```python
-   ACTION_FILTER_ALPHA = np.array([0.25, 0.3, 0.001, 0.3])
-   ```
-   Alpha=0 means no filtering (pass-through). Alpha→1 means heavy smoothing.
-
-The `config.json` inside the model folder is read automatically by Sample Factory to reconstruct the network architecture — do not edit it.
 
 ---
 
@@ -185,24 +204,6 @@ class Config:
 ```
 
 ---
-
-## Aerial Gym Training Reference
-
-The task used for training is `lidar_navigation_task` in Aerial Gym. The Sample Factory entry point command was:
-
-```bash
-python train.py \
-    --env=lidar_navigation_task \
-    --experiment=<experiment_name> \
-    --train_dir=<path>/models \
-    --with_wandb=false
-```
-
-Network architecture fixed in `standalone_inference.py`:
-- **Encoder**: Conv2d(1→16→32→64) on 16×20 LiDAR image, output 128-dim; concatenated with 17-dim state vector → MLP (256-128-64)
-- **Core**: GRU with 128 hidden units, 1 layer
-- **Head**: Linear to 4 actions with adaptive std
-
 
 ## Citation
 
