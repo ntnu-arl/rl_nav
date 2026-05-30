@@ -202,3 +202,20 @@ Network architecture fixed in `standalone_inference.py`:
 - **Encoder**: Conv2d(1→16→32→64) on 16×20 LiDAR image, output 128-dim; concatenated with 17-dim state vector → MLP (256-128-64)
 - **Core**: GRU with 128 hidden units, 1 layer
 - **Head**: Linear to 4 actions with adaptive std
+
+
+## Citation
+
+If you use this code or the trained models in your research, please consider citing:
+
+```
+@misc{dharmadhikari2026unifiedautonomystackblueprint,
+      title={The Unified Autonomy Stack: Toward a Blueprint for Generalizable Robot Autonomy}, 
+      author={Mihir Dharmadhikari and Nikhil Khedekar and Mihir Kulkarni and Morten Nissov and Martin Jacquet and Angelos Zacharia and Marvin Harms and Albert Gassol Puigjaner and Philipp Weiss and Kostas Alexis},
+      year={2026},
+      eprint={2605.12735},
+      archivePrefix={arXiv},
+      primaryClass={cs.RO},
+      url={https://arxiv.org/abs/2605.12735}, 
+}
+```
