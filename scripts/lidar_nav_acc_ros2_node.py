@@ -10,7 +10,6 @@ from mavros_msgs.msg import State, PositionTarget
 from std_msgs.msg import Empty, Float32MultiArray
 import ros2_numpy as rnp
 import time
-import cv2
 import numpy as np
 import torch
 import struct

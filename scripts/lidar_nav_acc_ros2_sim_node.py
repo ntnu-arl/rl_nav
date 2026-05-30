@@ -8,7 +8,6 @@ from geometry_msgs.msg import Twist, PoseStamped, TwistStamped
 from nav_msgs.msg import Odometry, Path
 from std_msgs.msg import Empty, Float32MultiArray
 from mavros_msgs.msg import State, PositionTarget
-import ros2_numpy as rnp
 import time
 import numpy as np
 import torch
